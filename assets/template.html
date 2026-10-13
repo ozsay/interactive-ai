@@ -228,6 +228,20 @@ details.dismissed-group > summary { cursor: pointer; color: var(--muted); }
 .ver.disputed { background: var(--medium-soft); color: var(--medium); }
 .ver.unverified { background: transparent; color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); }
 
+.sess.on { color: var(--ok); } .sess.on::before { content: "● "; }
+.sess.off { color: var(--medium); }
+.qa .followup { margin-top: 0.4rem; }
+.qa.quick { border-left-style: dashed; }
+.small { font-size: 0.8rem; }
+.fask { margin: 0.2rem 0 0; }
+.draftbox { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 0.6rem 0.9rem; margin: 0.8rem 0; }
+.draftbox pre { white-space: pre-wrap; font: 0.9rem/1.5 var(--f-body); margin: 0.3rem 0; }
+.draftbox ul { list-style: none; padding: 0; display: grid; gap: 0.5rem; }
+.draftbox li p { margin: 0.2rem 0 0; white-space: pre-wrap; }
+.warn { color: var(--medium); }
+.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+
 @media (max-width: 860px) {
   .layout { grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
   nav.toc { position: static; max-height: none; border: 1px solid var(--line); border-radius: 8px; padding: 0.5rem; background: var(--surface); }
@@ -243,7 +257,7 @@ details.dismissed-group > summary { cursor: pointer; color: var(--muted); }
   <div class="headmeta">{{HEAD_META}}</div>
   <div class="progress" aria-live="polite">
     <span class="bar" aria-hidden="true"><i id="readBar"></i></span>
-    <span id="readCount"></span><span id="triageCount"></span><span id="storeState" class="muted"></span>
+    <span id="readCount"></span><span id="triageCount"></span><span id="storeState" class="muted"></span><span id="sessionState" class="sess"></span>
   </div>
   {{STATUS}}
 </header>
@@ -341,50 +355,162 @@ details.dismissed-group > summary { cursor: pointer; color: var(--muted); }
     $$("main > section[id]").forEach((s) => io.observe(s));
   }
 
-  // Ask about a chapter: answered by Claude inside the page when the viewer allows it,
-  // otherwise copied as a prompt for the Claude Code session that built the tour.
-  let sample = null;
+  // Asking and acting. Preferred path: the comment goes to the live Claude Code session that built
+  // this tour (it can read the whole repository and act); the answer lands in db `asks/<key>` and
+  // shows inline. Fallbacks: a quick in-page answer from `sample`, then copy-for-Claude-Code.
+  let sample = null, comments = null, sendState = "off", asksColl = null;
+  const asks = {}; // key -> {kind, target, threadId, turns: [{q, a}]}
+  const quick = {}; // target -> [{q, a}] for in-page answers (not stored)
   const history = {};
+  const targetTitle = (t) => T.chapters.find((c) => c.id === t)?.title || T.findings.find((f) => f.id === t)?.title || t;
+
+  async function refreshSend() {
+    if (!comments || !comments.canSendToClaude) { sendState = "off"; }
+    else { try { sendState = await comments.canSendToClaude(); } catch { sendState = "off"; } }
+    const el = $("#sessionState");
+    el.className = "sess " + (sendState === "available" ? "on" : "off");
+    el.textContent = sendState === "available" ? "Connected to your Claude Code session"
+      : sendState === "no_session" ? "Claude Code session not reachable: open it and say \"reconnect the tour\""
+      : "";
+    $$(".askgo").forEach((b) => (b.textContent = sendState === "available" ? "Ask Claude" : sample ? "Quick answer" : "Copy for Claude Code"));
+    $$("[data-needs-session]").forEach((b) => (b.disabled = sendState !== "available"));
+    $("#sessionHint").hidden = sendState === "available";
+  }
+
+  const newKey = () => "k" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const errText = (e) => ({
+    consent_required: "Not sent: allow this page to comment as you, then try again.",
+    forbidden: "Commenting from this page is off here. Ask in Claude Code instead.",
+    claude_unavailable: "The Claude Code session can't receive this right now. Nothing was sent.",
+    rate_limited: "Too many requests at once. Wait a moment, then try again.",
+  }[e?.code] || "Not sent: " + (e?.message || e?.code || "unknown error"));
+
+  async function send(el, text, threadId) {
+    const target = threadId ? { threadId, text } : { anchor: await comments.anchorFor(el), text };
+    return comments.sendToClaude(target);
+  }
+
+  function renderAnswers() {
+    $$(".ask").forEach((box) => {
+      const t = box.dataset.ask, list = $(".answers", box);
+      const items = Object.entries(asks).filter(([, a]) => a.target === t).sort((x, y) => (x[1].at || "").localeCompare(y[1].at || ""));
+      list.replaceChildren();
+      for (const [key, a] of items) {
+        const qa = document.createElement("div"); qa.className = "qa";
+        for (const turn of a.turns || []) {
+          const q = document.createElement("p"); q.className = "q"; q.textContent = turn.q;
+          const ans = document.createElement("p"); ans.className = "a" + (turn.a ? "" : " muted");
+          ans.textContent = turn.a || "Claude is looking into it…";
+          qa.append(q, ans);
+        }
+        const row = document.createElement("div"); row.className = "askrow followup";
+        const input = document.createElement("input"); input.type = "text"; input.placeholder = "Follow up, or ask Claude to act on this answer";
+        input.setAttribute("aria-label", "Follow up on this answer");
+        const btn = document.createElement("button"); btn.type = "button"; btn.textContent = "Send"; btn.dataset.needsSession = "1";
+        btn.disabled = sendState !== "available";
+        const go = () => followUp(key, input);
+        btn.addEventListener("click", go);
+        input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); go(); } });
+        row.append(input, btn); qa.append(row); list.append(qa);
+      }
+      for (const turn of quick[t] || []) {
+        const qa = document.createElement("div"); qa.className = "qa quick";
+        const q = document.createElement("p"); q.className = "q"; q.textContent = turn.q;
+        const ans = document.createElement("p"); ans.className = "a" + (turn.err ? " err" : turn.a ? "" : " muted"); ans.textContent = turn.a || "Thinking…";
+        const note = document.createElement("p"); note.className = "muted small"; note.textContent = "Quick answer from the page. It can't read the code; ask in Claude Code for anything deeper.";
+        qa.append(q, ans, note); list.append(qa);
+      }
+    });
+  }
+
   async function ask(box) {
-    const id = box.dataset.ask, input = $("input", box), q = input.value.trim();
+    const t = box.dataset.ask, kind = box.dataset.kind || "ask", input = $("input", box), q = input.value.trim();
     if (!q) return;
-    const title = T.chapters.find((c) => c.id === id)?.title || id;
+    if (sendState === "available") {
+      const key = newKey();
+      const doc = { kind, target: t, at: new Date().toISOString(), turns: [{ q }] };
+      try {
+        const res = await send(box, `[pr-tour ${kind} key=${key} target=${t}] ${q}`);
+        input.value = "";
+        asks[key] = { ...doc, threadId: res.threadId }; renderAnswers();
+        if (asksColl) asksColl.doc(key).set(asks[key]).catch(() => toast("Sent to Claude, but the question was not saved with the page."));
+      } catch (e) { toast(errText(e)); refreshSend(); }
+      return;
+    }
     if (!sample) {
-      const prompt = `About the PR tour for ${T.key}, chapter "${title}": ${q}`;
+      const prompt = `About the PR tour for ${T.key}, "${targetTitle(t)}": ${q}`;
       try { await navigator.clipboard.writeText(prompt); toast("Copied. Paste the question into Claude Code."); }
       catch { toast("Copy failed. Ask in Claude Code: " + q); }
       return;
     }
     input.value = "";
-    const qa = document.createElement("div"); qa.className = "qa";
-    const qp = document.createElement("p"); qp.className = "q"; qp.textContent = q;
-    const ap = document.createElement("p"); ap.className = "a muted"; ap.textContent = "Thinking…";
-    qa.append(qp, ap); $(".answers", box).append(qa);
-    const h = (history[id] ||= []);
-    const first = h.length === 0;
-    const content = first
-      ? `You are helping a code reviewer who does not know this codebase understand one part of a pull request.\n` +
-        `Answer only from the material below. If the answer needs code that is not shown, say which file or symbol to look at, ` +
-        `and suggest asking in the Claude Code session, which can read the whole repository. Be concise and concrete. Plain text, no markdown headings.\n\n` +
-        `=== PR context ===\n${T.ask.base}\n\n=== The chapter being read ===\n${T.ask.chapters[id] || ""}\n\n=== Question ===\n${q}`
-      : q;
-    h.push({ role: "user", content });
+    const turn = { q, a: "" };
+    (quick[t] ||= []).push(turn); renderAnswers();
+    const h = (history[t] ||= []);
+    const material = T.ask.chapters[t] || T.ask.findings?.[t] || "";
+    h.push({ role: "user", content: h.length ? q :
+      `You are helping a code reviewer who does not know this codebase understand one part of a pull request.\n` +
+      `Answer only from the material below. If the answer needs code that is not shown, say which file or symbol to look at. ` +
+      `Be concise and concrete. Plain text.\n\n=== PR context ===\n${T.ask.base}\n\n=== The part being read ===\n${material}\n\n=== Question ===\n${q}` });
     try {
-      const res = await sample(h.slice(), { cache: false, onText: ({ text }) => { ap.className = "a"; ap.textContent = text; } });
-      ap.className = "a"; ap.textContent = res.text;
-      h.push({ role: "assistant", content: res.text });
-    } catch (e) {
-      h.pop();
-      ap.className = "a err";
-      ap.textContent = e?.code === "rate_limited" ? "Too many questions at once. Wait a moment and ask again."
-        : e?.code === "not_granted" ? "Asking Claude here is turned off for this page. Ask in Claude Code instead."
-        : "No answer: " + (e?.message || e?.code || "unknown error");
-    }
+      const res = await sample(h.slice(), { cache: false, onText: ({ text }) => { turn.a = text; renderAnswers(); } });
+      turn.a = res.text; h.push({ role: "assistant", content: res.text });
+    } catch (e) { h.pop(); turn.err = true; turn.a = e?.code === "rate_limited" ? "Too many questions at once. Wait a moment." : "No answer: " + (e?.message || e?.code || "unknown error"); }
+    renderAnswers();
   }
+
+  async function followUp(key, input) {
+    const a = asks[key], q = input.value.trim();
+    if (!a || !q || sendState !== "available") return;
+    try {
+      await send(null, `[pr-tour ${a.kind} key=${key} target=${a.target}] ${q}`, a.threadId);
+      input.value = "";
+      a.turns = [...(a.turns || []), { q }]; renderAnswers();
+      if (asksColl) asksColl.doc(key).set(a).catch(() => {});
+    } catch (e) { toast(errText(e)); refreshSend(); }
+  }
+
   $$(".ask").forEach((box) => {
     $(".askgo", box).addEventListener("click", () => ask(box));
     $("input", box).addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); ask(box); } });
-    $(".askgo", box).textContent = "Copy for Claude Code";
+  });
+
+  // Finish: the session drafts the review into db `review/draft`; posting is confirmed in Claude Code.
+  let draft = null, posted = null;
+  function renderDraft() {
+    const box = $("#draftBox");
+    box.hidden = !draft;
+    $("#postBtn").hidden = !draft || !!posted;
+    if (draft) {
+      $("#draftBody").textContent = draft.body || "(no review body)";
+      const list = $("#draftComments"); list.replaceChildren();
+      for (const c of draft.comments || []) {
+        const li = document.createElement("li");
+        const where = document.createElement("code"); where.textContent = `${c.path}:${c.line}`;
+        const body = document.createElement("p"); body.textContent = c.body;
+        li.append(where, body); list.append(li);
+      }
+      const warn = [];
+      if (draft.undecided?.length) warn.push(`${draft.undecided.length} finding(s) undecided: ${draft.undecided.join(", ")}`);
+      if (draft.unread?.length) warn.push(`${draft.unread.length} chapter(s) not marked as read`);
+      $("#draftWarn").textContent = warn.join(". ");
+      $("#draftMeta").textContent = `Drafted ${new Date(draft.at || Date.now()).toLocaleString()}. ${(draft.comments || []).length} line comment(s).`;
+    }
+    $("#postedLine").hidden = !posted;
+    if (posted) { const a = $("#postedLink"); a.href = posted.url; a.textContent = posted.url; }
+  }
+  $("#draftBtn").addEventListener("click", async (e) => {
+    try {
+      await send(e.currentTarget, `[pr-tour finalize key=draft] Draft my review.${state.instructions ? " Also: " + state.instructions : ""}`.slice(0, 3900));
+      $("#draftStatus").textContent = "Sent. Claude is drafting the review; it will appear here.";
+    } catch (err) { toast(errText(err)); refreshSend(); }
+  });
+  $("#postBtn").addEventListener("click", async (e) => {
+    if (!draft) return;
+    try {
+      await send(e.currentTarget, `[pr-tour post draft=${draft.at}] Post this review.`);
+      $("#draftStatus").textContent = "Sent. Confirm the post in Claude Code; nothing is posted until you do.";
+    } catch (err) { toast(errText(err)); refreshSend(); }
   });
 
   loadLocal();
@@ -392,11 +518,18 @@ details.dismissed-group > summary { cursor: pointer; color: var(--muted); }
   $("#storeState").textContent = "Saved in this browser";
 
   const use = window.claude && window.claude.use ? (n) => window.claude.use(n).catch(() => null) : async () => null;
-  use("sample").then((s) => { if (s) { sample = s; $$(".askgo").forEach((b) => (b.textContent = "Ask")); } });
+  use("sample").then((s) => { if (s) { sample = s; refreshSend(); } });
+  use("comments").then((c) => { comments = c; refreshSend(); });
+  window.addEventListener("focus", () => refreshSend());
+  refreshSend();
   use("db").then((db) => {
     if (!db) return;
     coll = db.collection("review");
-    $("#storeNote").textContent = "Your calls and notes are saved with this page, so Claude can read them when you finalize.";
+    asksColl = db.collection("asks");
+    asksColl.onSnapshot((snap) => {
+      snap.docs.forEach((d) => { asks[d.id] = d.data() || {}; });
+      renderAnswers();
+    }, () => {});
     let first = true;
     coll.onSnapshot((snap) => {
       if (first && snap.empty && (Object.keys(state.read).length || Object.keys(state.findings).length || Object.keys(state.notes).length || state.instructions)) {
@@ -407,7 +540,9 @@ details.dismissed-group > summary { cursor: pointer; color: var(--muted); }
       } else {
         snap.docs.forEach((d) => {
           const v = d.data() || {};
-          if (d.id === "progress") state.read = v.read || {};
+          if (d.id === "draft") draft = v;
+          else if (d.id === "posted") posted = v;
+          else if (d.id === "progress") state.read = v.read || {};
           else if (d.id === "finish") state.instructions = v.text || "";
           else if (d.id.startsWith("f-")) state.findings[d.id.slice(2)] = { verdict: v.verdict || null, note: v.note || "" };
           else if (d.id.startsWith("n-")) state.notes[d.id.slice(2)] = v.text || "";
@@ -416,7 +551,7 @@ details.dismissed-group > summary { cursor: pointer; color: var(--muted); }
       }
       first = false;
       $("#storeState").textContent = "Saved with this page";
-      render();
+      render(); renderDraft();
     }, () => { $("#storeState").textContent = "Saved in this browser only"; coll = null; });
   });
 })();

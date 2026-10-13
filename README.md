@@ -27,11 +27,32 @@ evidence and an independent verifier's verdict next to it.
 - **Findings:** each one with its impact, how it breaks, evidence, a suggested fix, and the
   verifier's reasoning. Dismissed candidates stay visible, collapsed, so you can see what was ruled out.
 - **Your review:** mark chapters as read, make a call on each finding (post it, ask the author,
-  not an issue), write notes, ask Claude about any chapter, and leave free-text instructions.
-  Then say "finalize the PR tour" and Claude drafts the GitHub review from your notes. It posts
-  only after you confirm, and always as a comment review, never an approval.
+  not an issue), write notes, and leave free-text instructions. Press **Draft my review** and the
+  draft appears on the page; **Post this review** posts it after you confirm in Claude Code,
+  always as a comment review, never an approval.
 
 The page is published as soon as the context is written and fills in while the reviewers run.
+
+## Talking to the session
+
+The page is wired to the Claude Code session that built it. Its buttons don't copy text for you
+to paste; they send a comment to that session, which wakes up and handles it:
+
+- **Ask Claude** on any chapter or finding: the session answers with the whole repository at hand
+  (the PR checkout, the code before the PR, the other PRs in a stack), so it can grep, read
+  callers and check history. The answer appears under the chapter and in the comment thread.
+- **Follow up** on an answer, or ask Claude to act on it ("add this as a question for the
+  author", "re-check this against the PR above"): the session changes the tour and republishes it
+  in place. Your notes and calls are kept.
+- **Draft my review / Post this review:** the session turns your calls, notes and instructions
+  into a GitHub review and shows the draft on the page.
+
+Anything that leaves the page, such as posting the review, opening an issue or editing code, is
+confirmed once in the Claude Code terminal. A click on a page can't authorize that on its own.
+
+This needs Claude Code connected to claude.ai and the session still open. The page shows whether
+it can reach the session. If it can't, say "reconnect the tour" in the session; meanwhile, Ask
+gives a quick answer from the page alone, and your notes can be copied into the chat.
 
 ## Review levels
 
@@ -46,10 +67,10 @@ The page is published as soon as the context is written and fills in while the r
 - [Claude Code](https://claude.com/claude-code).
 - [`gh`](https://cli.github.com/) logged in, plus `git`, `jq`, `python3` and `bash`. macOS and Linux.
 - For `regular` and `deep`: the [Codex CLI](https://github.com/openai/codex), logged in.
-- Optional: Claude Code connected to claude.ai, so the page is published as a private Artifact
-  with "Ask Claude" and notes that Claude can read back. Without it the page is a local HTML
-  file: notes stay in your browser (copy them into the chat when you finalize) and "Ask" copies
-  the question for your Claude Code session.
+- Recommended: Claude Code connected to claude.ai, so the page is published as a private
+  Artifact that talks to your session (see above). Without it the page is a local HTML file:
+  notes stay in your browser (copy them into the chat and say "finalize the PR tour") and "Ask"
+  copies the question for your Claude Code session.
 
 ## Install
 

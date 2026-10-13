@@ -85,3 +85,21 @@ head on GitHub; prefix `base:` (`` `base:src/a.ts:40` ``) to link the code befor
 
 Hunks longer than 400 lines are cut off in the page with a link to GitHub, so a generated file
 belongs in `skim` unless its content is the point.
+
+## Page ↔ session data
+
+The page and this session share the artifact's database:
+
+| Doc | Written by | Shape |
+|---|---|---|
+| `review/progress` | page | `{read: {chapterId: bool}}` |
+| `review/f-<id>` | page | `{verdict: "agree" \| "ask" \| "reject" \| null, note}` |
+| `review/n-<chapterId>` | page | `{text}` |
+| `review/finish` | page | `{text}`: the reader's free-text instructions |
+| `asks/<key>` | page creates; session fills `a` | `{kind: "ask" \| "act", target, threadId, at, turns: [{q, a}]}` |
+| `review/draft` | session | `review_draft.py --json` output: `{body, comments: [{path, line, body}], undecided, unread, at}` |
+| `review/posted` | session | `{url, at}` |
+
+Requests reach the session as comments sent to Claude, tagged
+`[pr-tour ask|act|finalize|post key=… target=…]`.
+

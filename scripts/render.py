@@ -330,6 +330,12 @@ def render_finding(ctx, f, chapter_title):
         <label class="sr" for="fn-{esc(f['id'])}">Your note on {esc(f['id'])}</label>
         <textarea id="fn-{esc(f['id'])}" data-fnote="{esc(f['id'])}" rows="2" placeholder="Your note (optional). Posted with the comment."></textarea>
       </div>'''
+    fid = esc(f["id"])
+    fask = "" if dismissed else (
+        f'<div class="ask fask" data-ask="{fid}" data-kind="act"><label class="sr" for="ask-{fid}">Ask Claude about {fid}</label>'
+        f'<div class="askrow"><input id="ask-{fid}" type="text" autocomplete="off" '
+        f'placeholder="Ask Claude about this finding, e.g. Does a later PR fix this? Reword it for the author.">'
+        f'<button type="button" class="askgo">Ask Claude</button></div><div class="answers" aria-live="polite"></div></div>')
     where = f'<span class="muted">in {esc(chapter_title)}</span>' if chapter_title else ""
     st = f.get("stack")
     stack_label = f"{STACK_KINDS[st['kind']]} #{st['pr']}" if st else ""
@@ -350,7 +356,7 @@ def render_finding(ctx, f, chapter_title):
       <div class="fbody">{stack_note}{f'<p class="impact">{ctx.inline(f["impact"])}</p>' if f.get("impact") else ""}{ctx.md(f['summary'])}
         <h5>How it breaks</h5>{ctx.md(f['scenario'])}
         {evidence}{fix}{verifier}{repro}
-      </div>{triage}
+      </div>{triage}{fask}
     </article>'''
 
 
@@ -501,9 +507,9 @@ def build(meta, pr, tour, files, stack=None):
       <div class="items">{'<button type="button" class="codeall" data-codeall="' + cid + '">Show all code in this chapter</button>' if items else ""}{items}</div>
       {here}
       <div class="ask" data-ask="{cid}">
-        <label for="ask-{cid}">Ask about this chapter</label>
-        <div class="askrow"><input id="ask-{cid}" type="text" autocomplete="off" placeholder="e.g. What calls this function today?">
-          <button type="button" class="askgo">Ask</button></div>
+        <label for="ask-{cid}">Ask Claude about this chapter</label>
+        <div class="askrow"><input id="ask-{cid}" type="text" autocomplete="off" placeholder="e.g. Who else calls this? Is it covered by a test?">
+          <button type="button" class="askgo">Ask Claude</button></div>
         <div class="answers" aria-live="polite"></div>
       </div>
       <label class="notelbl" for="cn-{cid}">Your comments on this chapter</label>
@@ -588,11 +594,23 @@ def build(meta, pr, tour, files, stack=None):
       <div id="finishSummary" class="finsum"></div>
       <label class="notelbl" for="finishText">Anything else for Claude</label>
       <textarea id="finishText" rows="5" placeholder="e.g. Merge F2 and F4 into one comment. Ask the author about the rollout plan. Open a follow-up issue for the missing tests."></textarea>
-      <p class="muted">Claude reads this when you finalize and checks with you before acting on it.</p>
-      <p>When you are done, go back to Claude Code and say <strong>finalize the PR tour</strong>. Claude drafts the GitHub review from your calls and notes and shows it to you before posting anything.</p>
-      <p class="muted" id="storeNote">If Claude cannot read your notes from this page, copy them and paste them into the chat.</p>
-      <div class="finbtns"><button type="button" id="copyNotes">Copy my notes</button><span id="copyMsg" class="muted" role="status"></span></div>
-      <textarea id="notesOut" class="notesout" rows="4" readonly hidden aria-label="Your notes as text"></textarea>
+      <p class="muted">Claude reads this with your calls and notes when it drafts the review. Anything outside this page, like opening an issue, it confirms with you in Claude Code first.</p>
+      <div class="finbtns"><button type="button" id="draftBtn" class="primary" data-needs-session="1">Draft my review</button><span id="draftStatus" class="muted" role="status"></span></div>
+      <div id="draftBox" class="draftbox" hidden>
+        <h3>Review draft</h3>
+        <p class="muted small" id="draftMeta"></p>
+        <p class="warn small" id="draftWarn"></p>
+        <h5>Review comment</h5><pre id="draftBody"></pre>
+        <h5>Line comments</h5><ul id="draftComments"></ul>
+        <div class="finbtns"><button type="button" id="postBtn" class="primary" data-needs-session="1">Post this review</button>
+          <span class="muted small">Posts a comment review on GitHub after you confirm in Claude Code. Never an approval or a change request.</span></div>
+      </div>
+      <p id="postedLine" hidden>Posted: <a id="postedLink" target="_blank" rel="noopener"></a></p>
+      <div id="sessionHint">
+        <p class="muted" id="storeNote">Claude Code isn't reachable from this page right now. In the session that built this tour, say <strong>reconnect the tour</strong>, or say <strong>finalize the PR tour</strong> there. If Claude can't read your notes from the page, copy them into the chat.</p>
+        <div class="finbtns"><button type="button" id="copyNotes">Copy my notes</button><span id="copyMsg" class="muted" role="status"></span></div>
+        <textarea id="notesOut" class="notesout" rows="4" readonly hidden aria-label="Your notes as text"></textarea>
+      </div>
     </section>''')
 
     data = {
@@ -605,6 +623,7 @@ def build(meta, pr, tour, files, stack=None):
                      f"How it works today:\n{c.get('before', '')}\n\nWhat changes:\n{c.get('after', '')}"
                      + (stack_text(stack, tour) if stacked else ""))[:30000],
             "chapters": ask_chapters,
+            "findings": {f["id"]: f"Finding {f['id']}: {f['title']}\n{f.get('impact', '')}\n{f['summary']}\nHow it breaks: {f['scenario']}\nFix: {f.get('fix', '')}" for f in live},
         },
     }
     if stacked:

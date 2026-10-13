@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """Turn the reviewer's calls and notes into a GitHub review.
 
-Usage: review_draft.py <rundir> <notes.json> [--post]
+Usage: review_draft.py <rundir> <notes.json> [--post | --json]
 
 notes.json: {"read": {chapterId: bool}, "findings": {id: {"verdict": "agree|ask|reject", "note": str}},
              "notes": {chapterId: str}}  (what the tour page stores / "Copy my notes" exports)
 
 Without --post: writes <rundir>/review.json and prints the review as it will appear.
 With --post: submits <rundir>/review.json as a COMMENT review (never approve / request changes).
+With --json: also prints the draft as one JSON object for the page's `review/draft` doc:
+  {body, comments: [{path, line, body}], undecided: [ids], unread: [chapter ids], at}
 """
 import json
 import os
@@ -19,7 +21,7 @@ def main():
     args = sys.argv[1:]
     if len(args) < 2:
         sys.exit(__doc__)
-    run, notes_path, post = args[0], args[1], "--post" in args
+    run, notes_path, post, as_json = args[0], args[1], "--post" in args, "--json" in args
     load = lambda p: json.load(open(p, encoding="utf-8"))
     meta, tour, files = load(os.path.join(run, "meta.json")), load(os.path.join(run, "tour.json")), load(os.path.join(run, "hunks.json"))["files"]
     notes = load(notes_path)
@@ -71,6 +73,15 @@ def main():
 
     review = {"commit_id": meta["headSha"], "event": "COMMENT", "body": body, "comments": inline}
     out = os.path.join(run, "review.json")
+    if as_json:
+        live = [f["id"] for f in tour.get("findings", []) if f["verdict"] != "DISMISSED"]
+        from datetime import datetime, timezone
+        json.dump(review, open(out, "w", encoding="utf-8"), indent=1)
+        print(json.dumps({"body": body, "comments": [{k: c[k] for k in ("path", "line", "body")} for c in inline],
+                          "undecided": [i for i in live if not (calls.get(i) or {}).get("verdict")],
+                          "unread": [c["id"] for c in tour["chapters"] if not notes.get("read", {}).get(c["id"])],
+                          "at": datetime.now(timezone.utc).isoformat(timespec="seconds")}))
+        return
     if not post:
         if not inline and not body:
             print("Nothing to post: no findings marked 'Agree' or 'Ask', and no chapter notes.")
