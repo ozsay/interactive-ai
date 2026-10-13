@@ -1,0 +1,423 @@
+<meta charset="utf-8">
+<title>{{TITLE}}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+/* Layout: a reading column with a sticky table of contents, like walking a code review in order. */
+:root {
+  --bg: #f4f6f8; --surface: #ffffff; --sunk: #eef1f5; --fg: #18202b; --muted: #5a6575; --line: #d9dfe7;
+  --accent: #2a55c9; --accent-soft: #e4ebfb;
+  --add-bg: #e3f3e8; --add-fg: #17643a; --del-bg: #fbe9e9; --del-fg: #a42323; --hunk: #e9eef9;
+  --high: #bf3328; --medium: #a8680f; --low: #2c6b98; --nit: #687384; --ok: #24774a;
+  --high-soft: #fbe7e5; --medium-soft: #fbf0dc; --low-soft: #e2eef7; --nit-soft: #eceef2; --ok-soft: #e1f2e8;
+  --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e131a; --surface: #151b24; --sunk: #1a212c; --fg: #e2e7ee; --muted: #93a0b2; --line: #273140;
+  --accent: #86a5f3; --accent-soft: #1d2a45;
+  --add-bg: #10301c; --add-fg: #82d59e; --del-bg: #3a1618; --del-fg: #f29b9b; --hunk: #1a2438;
+  --high: #f07b70; --medium: #e3a74c; --low: #6fb2e3; --nit: #9aa5b5; --ok: #6fcf98;
+  --high-soft: #3b1b19; --medium-soft: #36290f; --low-soft: #15283a; --nit-soft: #222a35; --ok-soft: #143222;
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0e131a; --surface: #151b24; --sunk: #1a212c; --fg: #e2e7ee; --muted: #93a0b2; --line: #273140;
+  --accent: #86a5f3; --accent-soft: #1d2a45;
+  --add-bg: #10301c; --add-fg: #82d59e; --del-bg: #3a1618; --del-fg: #f29b9b; --hunk: #1a2438;
+  --high: #f07b70; --medium: #e3a74c; --low: #6fb2e3; --nit: #9aa5b5; --ok: #6fcf98;
+  --high-soft: #3b1b19; --medium-soft: #36290f; --low-soft: #15283a; --nit-soft: #222a35; --ok-soft: #143222;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.6 var(--f-body); padding: 0 16px; }
+a { color: var(--accent); }
+code { font: 0.88em var(--f-mono); background: var(--sunk); padding: 0.05em 0.3em; border-radius: 3px; overflow-wrap: anywhere; }
+h1, h2, h3, h4 { font-family: var(--f-display); text-wrap: balance; line-height: 1.2; margin: 0; }
+h1 { font-size: 1.9rem; font-weight: 600; }
+h2 { font-size: 1.5rem; font-weight: 600; margin-bottom: 0.6rem; }
+h3 { font-size: 1.08rem; font-weight: 600; margin: 1.4rem 0 0.4rem; }
+h4 { font-size: 1.05rem; font-weight: 600; }
+h5 { font: 600 0.72rem var(--f-body); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 1rem 0 0.3rem; }
+p, ul { margin: 0.5rem 0; }
+ul { padding-left: 1.2rem; }
+.muted { color: var(--muted); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+button { font: 500 0.88rem var(--f-body); color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 0.4rem 0.8rem; cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus-visible, .diff:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+input, textarea { font: 0.92rem var(--f-body); color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 0.45rem 0.6rem; width: 100%; }
+textarea { resize: vertical; }
+
+.top { max-width: 1240px; margin: 0 auto; padding-block: 1.6rem 1rem; display: grid; gap: 0.5rem; }
+.eyebrow { font: 600 0.74rem var(--f-body); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 0; }
+.headmeta { display: flex; flex-wrap: wrap; gap: 0.4rem 1.1rem; color: var(--muted); font-size: 0.88rem; }
+.progress { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1.2rem; font-size: 0.85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.bar { width: 160px; height: 6px; background: var(--sunk); border-radius: 3px; overflow: hidden; }
+.bar > i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .3s; }
+.plus { color: var(--add-fg); font-variant-numeric: tabular-nums; }
+.minus { color: var(--del-fg); font-variant-numeric: tabular-nums; }
+
+.layout { max-width: 1240px; margin: 0 auto; display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 2rem; padding-block: 0 4rem; }
+nav.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); align-self: start; max-height: calc(100vh - 24px); overflow: auto; font-size: 0.88rem; }
+nav.toc ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 1px; }
+nav.toc a { display: flex; align-items: baseline; gap: 0.45rem; padding: 0.3rem 0.5rem; border-radius: 5px; color: var(--fg); text-decoration: none; }
+nav.toc a:hover { background: var(--sunk); }
+nav.toc a.here { background: var(--accent-soft); }
+.navh { font: 600 0.7rem var(--f-body); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); padding: 0.8rem 0.5rem 0.2rem; }
+.navn { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 1.1em; }
+.navt { flex: 1; min-width: 0; }
+.tick { width: 0.7rem; height: 0.7rem; border: 1.5px solid var(--line); border-radius: 50%; flex: none; align-self: center; }
+.tick.done { background: var(--ok); border-color: var(--ok); }
+.navt .chip { font-size: 0.6rem; padding: 0.05rem 0.35rem; vertical-align: 0.1em; }
+.chapter h2 .chip { font-size: 0.72rem; vertical-align: 0.25em; margin-right: 0.3rem; }
+.nbadge { font-size: 0.72rem; background: var(--medium-soft); color: var(--medium); border-radius: 9px; padding: 0 0.45rem; }
+
+main { min-width: 0; max-width: 900px; }
+.sec { padding-block: 1.6rem; border-top: 1px solid var(--line); }
+.sec:first-child { border-top: 0; padding-top: 0.2rem; }
+.sec > p, .sec > ul, .intent, .ba p { max-width: 68ch; }
+.lede { font-size: 1.15rem; line-height: 1.5; margin-top: 0; }
+.riskrow { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: baseline; }
+.chip { display: inline-block; font: 600 0.7rem var(--f-body); letter-spacing: 0.05em; text-transform: uppercase; padding: 0.12rem 0.5rem; border-radius: 4px; white-space: nowrap; }
+.risk.high, .sev.high { background: var(--high-soft); color: var(--high); }
+.risk.medium, .sev.medium { background: var(--medium-soft); color: var(--medium); }
+.risk.low, .sev.low { background: var(--low-soft); color: var(--low); }
+.sev.nit { background: var(--nit-soft); color: var(--nit); }
+.ver.confirmed { background: var(--fg); color: var(--bg); }
+.ver.plausible { background: transparent; color: var(--fg); box-shadow: inset 0 0 0 1px var(--fg); }
+.ver.dismissed { background: var(--nit-soft); color: var(--nit); }
+.dck.matches { background: var(--ok-soft); color: var(--ok); }
+.dck.missing, .dck.contradicts { background: var(--high-soft); color: var(--high); }
+.dck.unmentioned { background: var(--medium-soft); color: var(--medium); }
+
+.ba { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 1.6rem; }
+.ba > div { min-width: 0; }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+th, td { text-align: left; vertical-align: top; padding: 0.45rem 0.6rem; border-bottom: 1px solid var(--line); }
+.gloss th { font-family: var(--f-mono); font-weight: 500; font-size: 0.85rem; white-space: nowrap; }
+.skim .num { white-space: nowrap; font-variant-numeric: tabular-nums; }
+details.quiz { border: 1px solid var(--line); border-radius: 6px; padding: 0.5rem 0.8rem; margin: 0.4rem 0; background: var(--surface); }
+details.quiz summary { cursor: pointer; font-weight: 500; }
+details.quiz[open] summary { margin-bottom: 0.3rem; }
+pre.mermaid { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 1rem; overflow-x: auto; }
+
+.dclist { list-style: none; padding: 0; display: grid; gap: 0.7rem; }
+.dc { display: grid; grid-template-columns: 9.5rem minmax(0, 1fr); gap: 0.8rem; align-items: start; }
+.dc .claim { margin: 0; font-weight: 500; }
+.dc p { margin: 0.2rem 0; }
+
+.chapter .intent { color: var(--muted); font-size: 0.95rem; }
+.tldr { font-size: 1.12rem; line-height: 1.5; margin: 0.2rem 0 0.4rem; max-width: 62ch; }
+.impact { font-weight: 600; margin-top: 0; }
+.see ul { list-style: none; padding: 0; display: grid; gap: 0.2rem; font-size: 0.9rem; }
+.see h5 { margin-top: 0.8rem; }
+.checks { background: var(--accent-soft); border-radius: 6px; padding: 0.4rem 1rem 0.6rem; margin: 1rem 0; }
+.checks h3 { margin-top: 0.4rem; }
+.items { display: grid; gap: 1.2rem; margin: 1.2rem 0; }
+.item { min-width: 0; }
+.itemnote { border-left: 3px solid var(--accent); padding: 0.1rem 0 0.1rem 0.8rem; margin-bottom: 0.5rem; }
+.itemnote p { margin: 0.25rem 0; }
+.filehead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.3rem 0.7rem; background: var(--surface); border: 1px solid var(--line); border-bottom: 0; border-radius: 6px 6px 0 0; padding: 0.4rem 0.7rem; font-size: 0.85rem; }
+.fpath { font-family: var(--f-mono); font-size: 0.84rem; overflow-wrap: anywhere; color: var(--fg); }
+.fstat { font: 600 0.66rem var(--f-body); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.fstat.s-added { color: var(--add-fg); } .fstat.s-deleted { color: var(--del-fg); }
+.fnum { margin-left: auto; font-family: var(--f-mono); font-size: 0.8rem; }
+.hunkhead { font: 0.78rem var(--f-mono); color: var(--muted); background: var(--hunk); border: 1px solid var(--line); border-bottom: 0; padding: 0.25rem 0.7rem; overflow-x: auto; white-space: pre; }
+.diff { background: var(--surface); border: 1px solid var(--line); overflow-x: auto; font: 0.8rem/1.5 var(--f-mono); max-height: 70vh; overflow-y: auto; }
+.item .diff:last-child { border-radius: 0 0 6px 6px; }
+details.code > summary { cursor: pointer; list-style: none; border-bottom: 1px solid var(--line); border-radius: 6px; }
+details.code > summary::-webkit-details-marker { display: none; }
+details.code > summary::before { content: "▸"; color: var(--muted); }
+details.code[open] > summary { border-bottom: 0; border-radius: 6px 6px 0 0; }
+details.code[open] > summary::before { content: "▾"; }
+details.code > summary:hover { border-color: var(--accent); }
+.showcode { font-size: 0.78rem; color: var(--muted); }
+.codelinks { font-size: 0.8rem; padding: 0.3rem 0.7rem; background: var(--surface); border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
+.codeall { justify-self: start; font-size: 0.82rem; padding: 0.25rem 0.7rem; }
+.dl { display: grid; grid-template-columns: 3.4em 3.4em 1.4em max-content; min-width: 100%; width: max-content; }
+.dl .ln { color: var(--muted); text-align: right; padding-right: 0.5em; user-select: none; font-variant-numeric: tabular-nums; opacity: 0.75; }
+.dl .mk { text-align: center; user-select: none; }
+.dl .tx { white-space: pre; padding-right: 1rem; }
+.dl.add { background: var(--add-bg); } .dl.add .mk { color: var(--add-fg); }
+.dl.del { background: var(--del-bg); } .dl.del .mk { color: var(--del-fg); }
+.dl.meta { grid-template-columns: 1fr; color: var(--muted); font-style: italic; padding: 0.2rem 0.7rem; }
+details.delrun > summary { cursor: pointer; padding: 0.2rem 0.7rem; background: var(--del-bg); color: var(--del-fg); font-family: var(--f-body); font-size: 0.8rem; }
+pre.code { background: var(--sunk); border-radius: 6px; padding: 0.6rem 0.8rem; overflow-x: auto; font-size: 0.82rem; }
+pre.code code { background: none; padding: 0; }
+pre.out { max-height: 16rem; }
+
+.finding { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; margin: 0.9rem 0; overflow: hidden; }
+.finding > header { padding: 0.7rem 1rem 0.5rem; border-top: 3px solid var(--nit); display: grid; gap: 0.35rem; }
+.finding.sev-high > header { border-top-color: var(--high); }
+.finding.sev-medium > header { border-top-color: var(--medium); }
+.finding.sev-low > header { border-top-color: var(--low); }
+.fmeta { display: flex; flex-wrap: wrap; gap: 0.4rem 0.6rem; align-items: center; font-size: 0.85rem; }
+.fid { font: 500 0.8rem var(--f-mono); color: var(--muted); }
+.fbody { padding: 0 1rem 0.6rem; min-width: 0; }
+.fbody > p:first-child { margin-top: 0; }
+.evidence { font-size: 0.92rem; }
+.finding.dismissed { opacity: 0.85; }
+.triage { border-top: 1px solid var(--line); background: var(--sunk); padding: 0.7rem 1rem; display: grid; gap: 0.5rem; }
+.tbtns { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.tbtns button[aria-pressed="true"][data-v="agree"] { background: var(--ok); border-color: var(--ok); color: var(--surface); }
+.tbtns button[aria-pressed="true"][data-v="ask"] { background: var(--medium); border-color: var(--medium); color: var(--surface); }
+.tbtns button[aria-pressed="true"][data-v="reject"] { background: var(--nit); border-color: var(--nit); color: var(--surface); }
+details.dismissed-group { margin-top: 1.2rem; }
+details.dismissed-group > summary { cursor: pointer; color: var(--muted); }
+.flist { list-style: none; padding: 0; display: grid; gap: 0.35rem; }
+.flist a { text-decoration: none; color: var(--fg); }
+.flist a:hover { text-decoration: underline; }
+.tstate { font-size: 0.78rem; font-weight: 600; }
+.tstate.agree { color: var(--ok); } .tstate.ask { color: var(--medium); } .tstate.reject { color: var(--nit); }
+
+.ask { margin: 1.4rem 0 1rem; display: grid; gap: 0.4rem; }
+.ask label, .notelbl { font-weight: 600; font-size: 0.9rem; }
+.notelbl { display: block; margin: 1rem 0 0.4rem; }
+.askrow { display: flex; gap: 0.5rem; }
+.askrow input { flex: 1; min-width: 0; }
+.answers { display: grid; gap: 0.6rem; }
+.qa { border-left: 3px solid var(--line); padding-left: 0.8rem; min-width: 0; }
+.qa .q { font-weight: 500; margin: 0; }
+.qa .a { white-space: pre-wrap; margin: 0.2rem 0 0; overflow-wrap: anywhere; }
+.qa .a.err { color: var(--high); }
+.readrow { margin-top: 1rem; }
+.readbtn[aria-pressed="true"] { background: var(--ok-soft); border-color: var(--ok); color: var(--ok); }
+.finsum { display: flex; flex-wrap: wrap; gap: 0.5rem 1.6rem; font-variant-numeric: tabular-nums; }
+.finsum b { font-family: var(--f-display); font-size: 1.4rem; display: block; }
+.finbtns { display: flex; gap: 0.8rem; align-items: center; flex-wrap: wrap; }
+.notesout { font-family: var(--f-mono); font-size: 0.78rem; margin-top: 0.6rem; }
+.toast { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.88rem; max-width: calc(100% - 32px); }
+
+.stack { list-style: none; padding: 0; margin: 1.2rem 0 0; }
+.srow { position: relative; display: grid; grid-template-columns: 1.4rem minmax(0, 1fr); gap: 0.6rem; padding: 0 0 0.9rem; }
+.srow::before { content: ""; position: absolute; left: 0.62rem; top: 1.2rem; bottom: 0; width: 2px; background: var(--line); }
+.srow:last-child::before { display: none; }
+.snode { position: relative; z-index: 1; justify-self: center; width: 0.85rem; height: 0.85rem; margin-top: 0.4rem; border-radius: 50%; border: 2px solid var(--muted); background: var(--bg); }
+.sbase .snode { border-radius: 2px; }
+.sfocus .snode { background: var(--accent); border-color: var(--accent); }
+.sbody { min-width: 0; }
+.sfocus .sbody { background: var(--accent-soft); border-radius: 8px; padding: 0.55rem 0.8rem; }
+.shead { display: flex; flex-wrap: wrap; gap: 0.3rem 0.6rem; align-items: baseline; }
+.snum { font: 600 0.9rem var(--f-mono); }
+.stitle { font-weight: 600; flex: 1 1 14rem; min-width: 0; }
+.sbody p { margin: 0.3rem 0; max-width: 68ch; }
+.srel { font-size: 0.92rem; }
+.srel h5 { margin: 0.5rem 0 0.1rem; }
+.srel ul { margin: 0.2rem 0; }
+.sclosed { opacity: 0.6; }
+.you { font: 600 0.7rem var(--f-body); letter-spacing: 0.05em; text-transform: uppercase; color: var(--accent); }
+.shared summary { cursor: pointer; color: var(--muted); font-size: 0.85rem; }
+.shared ul { font-size: 0.85rem; margin: 0.2rem 0; }
+.st.open { background: var(--ok-soft); color: var(--ok); } .st.merged { background: var(--low-soft); color: var(--low); }
+.st.closed, .st.draft { background: var(--nit-soft); color: var(--nit); }
+.stk.fixed-above { background: var(--ok-soft); color: var(--ok); } .stk.changed-above { background: var(--low-soft); color: var(--low); }
+.stk.from-below { background: var(--nit-soft); color: var(--nit); } .stk.breaks-above { background: var(--high-soft); color: var(--high); }
+.stacknote { background: var(--sunk); border-radius: 6px; padding: 0.4rem 0.7rem; margin-bottom: 0.6rem; font-size: 0.92rem; }
+.stacknote p { margin: 0; }
+.health { border-left: 3px solid var(--medium); background: var(--medium-soft); padding: 0.2rem 0.9rem; border-radius: 0 6px 6px 0; margin: 0.8rem 0; }
+.health h3 { margin-top: 0.5rem; }
+
+.statusbar { display: flex; gap: 0.7rem; align-items: center; background: var(--accent-soft); border: 1px solid var(--accent); border-radius: 8px; padding: 0.6rem 0.9rem; font-size: 0.9rem; }
+.pulse { flex: none; width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--accent); animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.25; } }
+.pending { color: var(--muted); font-style: italic; }
+.navpend { padding: 0.3rem 0.5rem; font-size: 0.85rem; }
+.ver.disputed { background: var(--medium-soft); color: var(--medium); }
+.ver.unverified { background: transparent; color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); }
+
+@media (max-width: 860px) {
+  .layout { grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
+  nav.toc { position: static; max-height: none; border: 1px solid var(--line); border-radius: 8px; padding: 0.5rem; background: var(--surface); }
+  .dc { grid-template-columns: minmax(0, 1fr); gap: 0.3rem; }
+  h1 { font-size: 1.55rem; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
+</style>
+
+<header class="top">
+  <p class="eyebrow">Review tour · <a href="{{PR_URL}}" target="_blank" rel="noopener">{{PR_REF}}</a></p>
+  <h1>{{PR_TITLE}}</h1>
+  <div class="headmeta">{{HEAD_META}}</div>
+  <div class="progress" aria-live="polite">
+    <span class="bar" aria-hidden="true"><i id="readBar"></i></span>
+    <span id="readCount"></span><span id="triageCount"></span><span id="storeState" class="muted"></span>
+  </div>
+  {{STATUS}}
+</header>
+<div class="layout">
+  <nav class="toc" aria-label="Tour contents"><ul>{{NAV}}</ul></nav>
+  <main>{{MAIN}}</main>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+<script type="application/json" id="tour-data">{{DATA}}</script>
+<script>
+(() => {
+  const T = JSON.parse(document.getElementById("tour-data").textContent);
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const LS = "pr-tour:" + T.key;
+  const state = { read: {}, findings: {}, notes: {}, instructions: "" };
+  let coll = null;
+
+  const toast = (msg) => { const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => (t.hidden = true), 3200); };
+  const loadLocal = () => { try { Object.assign(state, JSON.parse(localStorage.getItem(LS) || "{}")); } catch {} };
+  const saveLocal = () => { try { localStorage.setItem(LS, JSON.stringify(state)); } catch {} };
+
+  async function persist(docId, data) {
+    saveLocal();
+    if (!coll) return;
+    try { await coll.doc(docId).set({ ...data, at: new Date().toISOString() }); }
+    catch (e) { toast("Saved in this browser only: " + (e && (e.message || e.code) || "save failed")); }
+  }
+
+  function render() {
+    const total = T.chapters.length, read = T.chapters.filter((c) => state.read[c.id]).length;
+    $("#readBar").style.width = (total ? (100 * read) / total : 0) + "%";
+    $("#readCount").textContent = `${read} of ${total} chapters read`;
+    const decided = T.findings.filter((f) => state.findings[f.id]?.verdict).length;
+    $("#triageCount").textContent = T.findings.length ? `${decided} of ${T.findings.length} findings decided` : "";
+    $$("[data-tick]").forEach((el) => el.classList.toggle("done", !!state.read[el.dataset.tick]));
+    $$("[data-read]").forEach((b) => {
+      const on = !!state.read[b.dataset.read];
+      b.setAttribute("aria-pressed", on); b.textContent = on ? "Read ✓" : "Mark chapter as read";
+    });
+    $$(".triage").forEach((box) => {
+      const v = state.findings[box.dataset.finding]?.verdict;
+      $$("button", box).forEach((b) => b.setAttribute("aria-pressed", b.dataset.v === v));
+    });
+    const label = { agree: "Posting", ask: "Asking author", reject: "Not an issue" };
+    $$("[data-tstate]").forEach((el) => { const v = state.findings[el.dataset.tstate]?.verdict; el.className = "tstate " + (v || ""); el.textContent = v ? label[v] : ""; });
+    $$("[data-fnote]").forEach((t) => { if (document.activeElement !== t) t.value = state.findings[t.dataset.fnote]?.note || ""; });
+    $$("[data-cnote]").forEach((t) => { if (document.activeElement !== t) t.value = state.notes[t.dataset.cnote] || ""; });
+    const ft = $("#finishText"); if (document.activeElement !== ft) ft.value = state.instructions || "";
+    const counts = { agree: 0, ask: 0, reject: 0 };
+    T.findings.forEach((f) => { const v = state.findings[f.id]?.verdict; if (v) counts[v]++; });
+    const notes = Object.values(state.notes).filter((s) => s && s.trim()).length;
+    $("#finishSummary").innerHTML = [[read + "/" + total, "chapters read"], [counts.agree, "to post"], [counts.ask, "questions"], [counts.reject, "not issues"], [T.findings.length - decided, "undecided"], [notes, "chapter notes"]]
+      .map(([n, l]) => `<div><b>${n}</b><span class="muted">${l}</span></div>`).join("");
+  }
+
+  const exportNotes = () => JSON.stringify({ key: T.key, read: state.read, findings: state.findings, notes: state.notes, instructions: state.instructions }, null, 1);
+
+  document.addEventListener("click", (e) => {
+    const ca = e.target.closest("[data-codeall]");
+    if (ca) {
+      const all = $$(`[data-chapter="${ca.dataset.codeall}"] details.code`), open = all.some((d) => !d.open);
+      all.forEach((d) => (d.open = open));
+      ca.textContent = open ? "Hide all code in this chapter" : "Show all code in this chapter";
+      return;
+    }
+    const rb = e.target.closest("[data-read]");
+    if (rb) { const id = rb.dataset.read; state.read[id] = !state.read[id]; render(); persist("progress", { read: state.read }); return; }
+    const tb = e.target.closest(".triage button");
+    if (tb) {
+      const id = tb.closest(".triage").dataset.finding, cur = state.findings[id] || {};
+      cur.verdict = cur.verdict === tb.dataset.v ? null : tb.dataset.v;
+      state.findings[id] = cur; render(); persist("f-" + id, cur); return;
+    }
+  });
+  document.addEventListener("change", (e) => {
+    const t = e.target;
+    if (t.dataset.fnote) { const id = t.dataset.fnote, cur = state.findings[id] || {}; cur.note = t.value; state.findings[id] = cur; render(); persist("f-" + id, cur); }
+    if (t.dataset.cnote) { state.notes[t.dataset.cnote] = t.value; render(); persist("n-" + t.dataset.cnote, { text: t.value }); }
+    if (t.id === "finishText") { state.instructions = t.value; persist("finish", { text: t.value }); }
+  });
+
+  $("#copyNotes").addEventListener("click", () => {
+    const text = exportNotes(), out = $("#notesOut");
+    const fallback = () => { out.hidden = false; out.value = text; out.focus(); out.select(); $("#copyMsg").textContent = "Select all and copy this text."; };
+    try { navigator.clipboard.writeText(text).then(() => ($("#copyMsg").textContent = "Copied. Paste it into Claude Code."), fallback); } catch { fallback(); }
+  });
+
+  // Section highlight in the table of contents.
+  const links = new Map($$("nav.toc a").map((a) => [a.getAttribute("href").slice(1), a]));
+  if ("IntersectionObserver" in window) {
+    const io = new IntersectionObserver((ents) => ents.forEach((en) => {
+      if (en.isIntersecting) { links.forEach((a) => a.classList.remove("here")); links.get(en.target.id)?.classList.add("here"); }
+    }), { rootMargin: "-20% 0px -70% 0px" });
+    $$("main > section[id]").forEach((s) => io.observe(s));
+  }
+
+  // Ask about a chapter: answered by Claude inside the page when the viewer allows it,
+  // otherwise copied as a prompt for the Claude Code session that built the tour.
+  let sample = null;
+  const history = {};
+  async function ask(box) {
+    const id = box.dataset.ask, input = $("input", box), q = input.value.trim();
+    if (!q) return;
+    const title = T.chapters.find((c) => c.id === id)?.title || id;
+    if (!sample) {
+      const prompt = `About the PR tour for ${T.key}, chapter "${title}": ${q}`;
+      try { await navigator.clipboard.writeText(prompt); toast("Copied. Paste the question into Claude Code."); }
+      catch { toast("Copy failed. Ask in Claude Code: " + q); }
+      return;
+    }
+    input.value = "";
+    const qa = document.createElement("div"); qa.className = "qa";
+    const qp = document.createElement("p"); qp.className = "q"; qp.textContent = q;
+    const ap = document.createElement("p"); ap.className = "a muted"; ap.textContent = "Thinking…";
+    qa.append(qp, ap); $(".answers", box).append(qa);
+    const h = (history[id] ||= []);
+    const first = h.length === 0;
+    const content = first
+      ? `You are helping a code reviewer who does not know this codebase understand one part of a pull request.\n` +
+        `Answer only from the material below. If the answer needs code that is not shown, say which file or symbol to look at, ` +
+        `and suggest asking in the Claude Code session, which can read the whole repository. Be concise and concrete. Plain text, no markdown headings.\n\n` +
+        `=== PR context ===\n${T.ask.base}\n\n=== The chapter being read ===\n${T.ask.chapters[id] || ""}\n\n=== Question ===\n${q}`
+      : q;
+    h.push({ role: "user", content });
+    try {
+      const res = await sample(h.slice(), { cache: false, onText: ({ text }) => { ap.className = "a"; ap.textContent = text; } });
+      ap.className = "a"; ap.textContent = res.text;
+      h.push({ role: "assistant", content: res.text });
+    } catch (e) {
+      h.pop();
+      ap.className = "a err";
+      ap.textContent = e?.code === "rate_limited" ? "Too many questions at once. Wait a moment and ask again."
+        : e?.code === "not_granted" ? "Asking Claude here is turned off for this page. Ask in Claude Code instead."
+        : "No answer: " + (e?.message || e?.code || "unknown error");
+    }
+  }
+  $$(".ask").forEach((box) => {
+    $(".askgo", box).addEventListener("click", () => ask(box));
+    $("input", box).addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); ask(box); } });
+    $(".askgo", box).textContent = "Copy for Claude Code";
+  });
+
+  loadLocal();
+  render();
+  $("#storeState").textContent = "Saved in this browser";
+
+  const use = window.claude && window.claude.use ? (n) => window.claude.use(n).catch(() => null) : async () => null;
+  use("sample").then((s) => { if (s) { sample = s; $$(".askgo").forEach((b) => (b.textContent = "Ask")); } });
+  use("db").then((db) => {
+    if (!db) return;
+    coll = db.collection("review");
+    $("#storeNote").textContent = "Your calls and notes are saved with this page, so Claude can read them when you finalize.";
+    let first = true;
+    coll.onSnapshot((snap) => {
+      if (first && snap.empty && (Object.keys(state.read).length || Object.keys(state.findings).length || Object.keys(state.notes).length || state.instructions)) {
+        if (state.instructions) persist("finish", { text: state.instructions });
+        persist("progress", { read: state.read });
+        Object.entries(state.findings).forEach(([id, v]) => persist("f-" + id, v));
+        Object.entries(state.notes).forEach(([id, v]) => persist("n-" + id, { text: v }));
+      } else {
+        snap.docs.forEach((d) => {
+          const v = d.data() || {};
+          if (d.id === "progress") state.read = v.read || {};
+          else if (d.id === "finish") state.instructions = v.text || "";
+          else if (d.id.startsWith("f-")) state.findings[d.id.slice(2)] = { verdict: v.verdict || null, note: v.note || "" };
+          else if (d.id.startsWith("n-")) state.notes[d.id.slice(2)] = v.text || "";
+        });
+        saveLocal();
+      }
+      first = false;
+      $("#storeState").textContent = "Saved with this page";
+      render();
+    }, () => { $("#storeState").textContent = "Saved in this browser only"; coll = null; });
+  });
+})();
+</script>

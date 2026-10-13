@@ -1,0 +1,10 @@
+{
+  "reviewer": {
+    "claude": { "model": "opus", "label": "Claude Opus 5.5", "effort": "medium" },
+    "codex": { "model": "gpt-6-astra", "label": "Codex gpt-6-astra", "effort": "medium" }
+  },
+  "verifier": {
+    "claude": { "model": "sonnet", "label": "Claude Sonnet 5.5", "effort": "medium" },
+    "codex": { "model": "gpt-6.1-sol", "label": "Codex gpt-6.1-sol", "effort": "medium" }
+  }
+}
