@@ -1,0 +1,8 @@
+{
+  "name": "interactive-ai",
+  "description": "Skills that keep the human engaged in agent work: guided PR review tours and interactive design docs.",
+  "version": "1.0.0",
+  "author": { "name": "Oz Sayag" },
+  "repository": "https://github.com/ozsay/interactive-ai",
+  "license": "MIT"
+}

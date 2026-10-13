@@ -11,7 +11,7 @@ The reader is a competent engineer who has **not** worked in this code. The page
 in this order: what was here before, what this PR changes and why, where to look closely, and
 what is wrong with it, with evidence the reader can check without a second agent.
 
-`SKILL_DIR` below is this skill's directory (`~/.claude/skills/pr-tour`).
+`SKILL_DIR` below is the directory this SKILL.md is in.
 
 ## Arguments
 

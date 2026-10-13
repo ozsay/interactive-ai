@@ -1,0 +1,418 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+/* A reading column with the stages on the left: one decision at a time, the human makes each call. */
+:root {
+  --bg: #f4f6f8; --surface: #ffffff; --sunk: #eef1f5; --fg: #18202b; --muted: #5a6575; --line: #d9dfe7;
+  --accent: #2a55c9; --accent-soft: #e4ebfb;
+  --add-bg: #e3f3e8; --add-fg: #17643a; --del-bg: #fbe9e9; --del-fg: #a42323; --hunk: #e9eef9;
+  --high: #bf3328; --medium: #a8680f; --low: #2c6b98; --nit: #687384; --ok: #24774a;
+  --high-soft: #fbe7e5; --medium-soft: #fbf0dc; --low-soft: #e2eef7; --nit-soft: #eceef2; --ok-soft: #e1f2e8;
+  --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e131a; --surface: #151b24; --sunk: #1a212c; --fg: #e2e7ee; --muted: #93a0b2; --line: #273140;
+  --accent: #86a5f3; --accent-soft: #1d2a45;
+  --add-bg: #10301c; --add-fg: #82d59e; --del-bg: #3a1618; --del-fg: #f29b9b; --hunk: #1a2438;
+  --high: #f07b70; --medium: #e3a74c; --low: #6fb2e3; --nit: #9aa5b5; --ok: #6fcf98;
+  --high-soft: #3b1b19; --medium-soft: #36290f; --low-soft: #15283a; --nit-soft: #222a35; --ok-soft: #143222;
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0e131a; --surface: #151b24; --sunk: #1a212c; --fg: #e2e7ee; --muted: #93a0b2; --line: #273140;
+  --accent: #86a5f3; --accent-soft: #1d2a45;
+  --add-bg: #10301c; --add-fg: #82d59e; --del-bg: #3a1618; --del-fg: #f29b9b; --hunk: #1a2438;
+  --high: #f07b70; --medium: #e3a74c; --low: #6fb2e3; --nit: #9aa5b5; --ok: #6fcf98;
+  --high-soft: #3b1b19; --medium-soft: #36290f; --low-soft: #15283a; --nit-soft: #222a35; --ok-soft: #143222;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.6 var(--f-body); padding: 0 16px; }
+a { color: var(--accent); }
+code { font: 0.88em var(--f-mono); background: var(--sunk); padding: 0.05em 0.3em; border-radius: 3px; overflow-wrap: anywhere; }
+h1, h2, h3, h4 { font-family: var(--f-display); text-wrap: balance; line-height: 1.2; margin: 0; }
+h1 { font-size: 1.9rem; font-weight: 600; }
+h2 { font-size: 1.5rem; font-weight: 600; margin-bottom: 0.6rem; }
+h3 { font-size: 1.08rem; font-weight: 600; margin: 1.4rem 0 0.4rem; }
+h4 { font-size: 1.05rem; font-weight: 600; }
+h5 { font: 600 0.72rem var(--f-body); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 1rem 0 0.3rem; }
+p, ul { margin: 0.5rem 0; }
+ul { padding-left: 1.2rem; }
+.muted { color: var(--muted); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+button { font: 500 0.88rem var(--f-body); color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 0.4rem 0.8rem; cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus-visible, .diff:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+input, textarea { font: 0.92rem var(--f-body); color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 0.45rem 0.6rem; width: 100%; }
+textarea { resize: vertical; }
+
+
+.top { max-width: 1240px; margin: 0 auto; padding-block: 1.6rem 1rem; display: grid; gap: 0.6rem; }
+.eyebrow { font: 600 0.74rem var(--f-body); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 0; }
+.headmeta { display: flex; flex-wrap: wrap; gap: 0.4rem 1.1rem; color: var(--muted); font-size: 0.88rem; }
+.seed summary { cursor: pointer; color: var(--muted); font-size: 0.88rem; }
+.seed blockquote { white-space: pre-wrap; }
+.stagebar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; max-width: 420px; }
+.sb { height: 6px; border-radius: 3px; background: var(--sunk); }
+.sb.done { background: var(--ok); } .sb.here { background: var(--accent); }
+.waiting { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 0.5rem 0.9rem; }
+.waiting h2 { font-size: 0.95rem; margin: 0.2rem 0; }
+.waiting ul { margin: 0.2rem 0; }
+.waiting li.sent { color: var(--muted); }
+.waiting li.sent::after { content: " (sent)"; }
+.status-row { display: flex; flex-wrap: wrap; gap: 0.6rem 1.2rem; font-size: 0.85rem; color: var(--muted); }
+
+.layout { max-width: 1240px; margin: 0 auto; display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 2rem; padding-block: 0 4rem; }
+nav.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); align-self: start; max-height: calc(100vh - 24px); overflow: auto; font-size: 0.88rem; }
+nav.toc ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 1px; }
+nav.toc a { display: flex; align-items: center; gap: 0.45rem; padding: 0.3rem 0.5rem; border-radius: 5px; color: var(--fg); text-decoration: none; }
+nav.toc a:hover { background: var(--sunk); }
+nav.toc a.here { background: var(--accent-soft); }
+nav.toc a.st-later { color: var(--muted); }
+nav.toc li.sub a { padding-left: 1.9rem; font-size: 0.82rem; }
+.navn { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 1.1em; }
+.navt { flex: 1; min-width: 0; }
+.tick { width: 0.7rem; height: 0.7rem; border: 1.5px solid var(--line); border-radius: 50%; flex: none; }
+.tick.done { background: var(--ok); border-color: var(--ok); } .tick.here { border-color: var(--accent); background: var(--accent-soft); }
+.dst { font: 600 0.66rem var(--f-body); text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+nav .dst { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--line); flex: none; }
+nav .dst.open { background: var(--accent); } nav .dst.decided { background: var(--ok); } nav .dst.parked { background: var(--medium); }
+table .dst.open { color: var(--accent); } table .dst.decided { color: var(--ok); } table .dst.parked { color: var(--medium); }
+.keyd { font: 600 0.62rem var(--f-body); text-transform: uppercase; color: var(--medium); margin-left: 0.3rem; }
+
+main { min-width: 0; max-width: 900px; }
+.sec { padding-block: 1.6rem; border-top: 1px solid var(--line); }
+.sec:first-child { border-top: 0; padding-top: 0.2rem; }
+.sec > p, .sec > ul, .sec p { max-width: 70ch; }
+.sec.st-later h2 { color: var(--muted); }
+.snum { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: 0.2rem; }
+.later { color: var(--muted); font-style: italic; }
+.ok { color: var(--ok); font-weight: 600; }
+.small { font-size: 0.82rem; }
+.lbl { display: block; font-weight: 600; margin-top: 1rem; }
+.chip { display: inline-block; font: 600 0.68rem var(--f-body); letter-spacing: 0.05em; text-transform: uppercase; padding: 0.1rem 0.45rem; border-radius: 4px; background: var(--sunk); color: var(--muted); white-space: nowrap; vertical-align: 0.1em; }
+.recchip { background: var(--accent-soft); color: var(--accent); }
+.okchip { background: var(--ok-soft); color: var(--ok); }
+.sev.high { background: var(--high-soft); color: var(--high); } .sev.medium { background: var(--medium-soft); color: var(--medium); } .sev.low { background: var(--low-soft); color: var(--low); }
+.grade.covered { background: var(--ok-soft); color: var(--ok); } .grade.partly { background: var(--medium-soft); color: var(--medium); } .grade.missing { background: var(--high-soft); color: var(--high); }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+th, td { text-align: left; vertical-align: top; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--line); }
+.gloss th { font-weight: 600; white-space: nowrap; }
+.dlist a { font-family: var(--f-mono); }
+.refs { color: var(--muted); }
+.callout { border-left: 3px solid var(--medium); background: var(--medium-soft); padding: 0.2rem 0.9rem; border-radius: 0 6px 6px 0; margin: 1rem 0; }
+.callout h3 { margin-top: 0.5rem; }
+pre.code { background: var(--sunk); border-radius: 6px; padding: 0.6rem 0.8rem; overflow-x: auto; font-size: 0.82rem; }
+pre.code code { background: none; padding: 0; }
+pre.mermaid { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 1rem; overflow-x: auto; }
+blockquote { margin: 0.4rem 0; padding: 0.3rem 0.9rem; border-left: 3px solid var(--line); }
+.human { font-style: italic; border-left-color: var(--ok); white-space: pre-wrap; }
+.btns { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
+.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+button.rec { border-color: var(--accent); }
+
+.req { margin: 0.6rem 0; }
+.req.gate { margin-top: 1.4rem; }
+.req.sent button { opacity: 0.5; pointer-events: none; }
+.reqstate { margin: 0.3rem 0 0; color: var(--accent); }
+.reqstate:empty { display: none; }
+.editbox summary { cursor: pointer; color: var(--muted); font-size: 0.88rem; margin-top: 0.6rem; }
+.editbox textarea { margin-top: 0.4rem; }
+.assumptions { list-style: none; padding: 0; display: grid; gap: 0.6rem; }
+.assumptions > li { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 0.5rem 0.9rem; }
+.assumptions .req { margin: 0; }
+.assumptions p { margin: 0.2rem 0; }
+.assume.wrong { border-color: var(--medium); }
+.qcard { background: var(--accent-soft); border-radius: 8px; padding: 0.6rem 1rem; margin: 1rem 0; }
+.qcard.done { background: var(--sunk); }
+.qcard h4 { margin: 0.2rem 0 0.4rem; }
+
+.dcard { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 0.8rem 1.1rem; margin: 1.1rem 0; }
+.dcard.open { border: 2px solid var(--accent); }
+.dcard.later { background: transparent; border-style: dashed; padding-block: 0.5rem; }
+.dcard.later h3, .dcard.later p { margin: 0.1rem 0; }
+.dcard.parked { border-color: var(--medium); }
+details.dcard > summary, details.dsec > summary, details.obj > summary { cursor: pointer; list-style: none; }
+details.dcard > summary::-webkit-details-marker, details.dsec > summary::-webkit-details-marker, details.obj > summary::-webkit-details-marker { display: none; }
+.dtitle { margin-top: 0.1rem; }
+.dq { font-size: 1.1rem; font-weight: 500; }
+.opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0.7rem; margin: 0.8rem 0; }
+.opt { display: block; border: 1px solid var(--line); border-radius: 8px; padding: 0.6rem 0.8rem; background: var(--bg); cursor: default; min-width: 0; }
+.decide .opt { cursor: pointer; }
+.opt.rec { border-color: var(--accent); }
+.opt.picked { border: 2px solid var(--ok); }
+.opt:has(input:checked) { border: 2px solid var(--accent); background: var(--accent-soft); }
+.opthead { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+.opthead input { width: auto; margin: 0; }
+.opt p { margin: 0.3rem 0; font-size: 0.92rem; }
+.pc { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; font-size: 0.88rem; }
+.pc h5 { margin-top: 0.4rem; }
+.pc ul { margin: 0.1rem 0; }
+.recwhy { background: var(--accent-soft); border-radius: 6px; padding: 0.2rem 0.9rem 0.4rem; }
+.check { border-radius: 6px; padding: 0.2rem 0.9rem 0.4rem; margin: 0.6rem 0; }
+.check.okc { background: var(--ok-soft); } .check.gap { background: var(--medium-soft); }
+
+.dsec { margin: 1rem 0; padding: 0.4rem 0 0.6rem; }
+.dsec.open { border-left: 3px solid var(--accent); padding-left: 1rem; }
+.dsec.later h3, .dsec.later p { margin: 0.2rem 0; color: var(--muted); }
+.dsec.done h3 { margin: 0.6rem 0 0.2rem; }
+
+.obj { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); margin: 0.9rem 0; padding: 0 1rem 0.6rem; border-top: 3px solid var(--low); }
+.obj.sev-high { border-top-color: var(--high); } .obj.sev-medium { border-top-color: var(--medium); }
+.obj header { padding-top: 0.6rem; }
+.obj header h3 { margin: 0.3rem 0 0.1rem; }
+.fid { font: 500 0.8rem var(--f-mono); color: var(--muted); }
+.dq-card { border-bottom: 1px solid var(--line); padding: 0.6rem 0 0.8rem; }
+.dq-card h4 { margin: 0.2rem 0 0.4rem; font-size: 1.05rem; }
+.working { color: var(--accent); }
+.log { list-style: none; padding: 0; display: grid; gap: 0.3rem; font-size: 0.9rem; }
+.by { font-weight: 600; font-size: 0.8rem; } .by.human { color: var(--ok); } .by.claude { color: var(--accent); }
+#log summary { cursor: pointer; list-style: none; }
+
+.ask { margin: 1rem 0 0.4rem; display: grid; gap: 0.3rem; }
+.askrow { display: flex; gap: 0.5rem; }
+.askrow input { flex: 1; min-width: 0; }
+.answers { display: grid; gap: 0.6rem; }
+.qa { border-left: 3px solid var(--line); padding-left: 0.8rem; min-width: 0; }
+.qa .q { font-weight: 500; margin: 0; }
+.qa .a { white-space: pre-wrap; margin: 0.2rem 0 0; overflow-wrap: anywhere; }
+.qa .a.err { color: var(--high); }
+.qa.quick { border-left-style: dashed; }
+.qa .followup { margin-top: 0.4rem; }
+.sess.on { color: var(--ok); } .sess.on::before { content: "● "; }
+.sess.off { color: var(--medium); }
+.statusbar { display: flex; gap: 0.7rem; align-items: center; background: var(--accent-soft); border: 1px solid var(--accent); border-radius: 8px; padding: 0.6rem 0.9rem; font-size: 0.9rem; }
+.pulse { display: inline-block; flex: none; width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--accent); animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.25; } }
+.toast { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.88rem; max-width: calc(100% - 32px); }
+
+@media (max-width: 860px) {
+  .layout { grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
+  nav.toc { position: static; max-height: none; border: 1px solid var(--line); border-radius: 8px; padding: 0.5rem; background: var(--surface); }
+  .pc { grid-template-columns: 1fr; }
+  h1 { font-size: 1.55rem; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<header class="top">
+  <p class="eyebrow">Design doc · planned together with Claude</p>
+  <h1>{{DOC_TITLE}}</h1>
+  <div class="headmeta">{{HEAD_META}}</div>
+  <div class="stagebar" aria-hidden="true">{{STAGEBAR}}</div>
+  <details class="seed"><summary>Where this started</summary><blockquote>{{SEED}}</blockquote></details>
+  <div class="status-row" aria-live="polite"><span id="sessionState" class="sess"></span><span id="storeState"></span></div>
+  {{STATUS}}
+  <div class="waiting" id="waiting" hidden><h2>Waiting on you</h2><ul id="waitingList"></ul></div>
+</header>
+<div class="layout">
+  <nav class="toc" aria-label="Stages"><ul>{{NAV}}</ul></nav>
+  <main>{{MAIN}}</main>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+<script type="application/json" id="doc-data">{{DATA}}</script>
+{{MERMAID}}
+<script>
+(() => {
+  const T = JSON.parse(document.getElementById("doc-data").textContent);
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const LS = "design-doc:" + T.key;
+  const toast = (msg) => { const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => (t.hidden = true), 3600); };
+  const local = (() => { try { return JSON.parse(localStorage.getItem(LS) || "{}"); } catch { return {}; } })();
+  local.drafts ||= {}; local.inputs ||= {};
+  const saveLocal = () => { try { localStorage.setItem(LS, JSON.stringify(local)); } catch {} };
+
+  let comments = null, sample = null, sendState = "off", inputsColl = null, asksColl = null;
+  const inputs = { ...local.inputs }; // target -> last request sent
+  const asks = {}, quick = {}, history = {};
+
+  // ---- what was sent but not yet reflected in this render
+  const sentSince = (target) => { const i = inputs[target]; return i && i.at > T.renderedAt ? i : null; };
+  const kindText = { approve: "Approved", edit: "Change requested", assume: "Marked", answer: "Answered", decide: "Decided", park: "Parked",
+    reopen: "Reopen requested", respond: "Response sent", defend: "Answer sent", finalize: "Sign-off requested" };
+  function renderSent() {
+    $$(".req").forEach((box) => {
+      const i = sentSince(box.dataset.target);
+      box.classList.toggle("sent", !!i);
+      $(".reqstate", box).textContent = i ? `${kindText[i.kind] || "Sent"}. Claude is working on it; the page updates when it's done.` : "";
+    });
+    const list = $("#waitingList"); list.replaceChildren();
+    for (const w of T.waiting) {
+      const li = document.createElement("li"), a = document.createElement("a");
+      a.href = "#" + (document.getElementById(w.id) ? w.id : "req-" + w.id);
+      a.textContent = w.label; li.append(a);
+      if (sentSince(w.id)) li.className = "sent";
+      list.append(li);
+    }
+    $("#waiting").hidden = !T.waiting.length;
+  }
+
+  // ---- the channel to the Claude Code session
+  async function refreshSend() {
+    if (!comments || !comments.canSendToClaude) sendState = "off";
+    else { try { sendState = await comments.canSendToClaude(); } catch { sendState = "off"; } }
+    const el = $("#sessionState");
+    el.className = "sess " + (sendState === "available" ? "on" : "off");
+    el.textContent = sendState === "available" ? "Connected to your Claude Code session"
+      : sendState === "no_session" ? "Claude Code session not reachable: open it and say \"resume the design doc\""
+      : "Not connected: your buttons copy a message to paste into Claude Code";
+    $$(".askgo").forEach((b) => (b.textContent = sendState === "available" ? "Ask Claude" : sample ? "Quick answer" : "Copy for Claude Code"));
+  }
+  const errText = (e) => ({
+    consent_required: "Not sent: allow this page to comment as you, then try again.",
+    forbidden: "Commenting from this page is off here. Answer in Claude Code instead.",
+    claude_unavailable: "The Claude Code session can't receive this right now. Nothing was sent.",
+    rate_limited: "Too many requests at once. Wait a moment, then try again.",
+  }[e?.code] || "Not sent: " + (e?.message || e?.code || "unknown error"));
+  const newKey = () => "k" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  async function send(el, text, threadId) {
+    return comments.sendToClaude(threadId ? { threadId, text } : { anchor: await comments.anchorFor(el), text });
+  }
+
+  // ---- buttons that send a request about one part of the doc
+  document.addEventListener("click", async (e) => {
+    const rv = e.target.closest("[data-reveal]");
+    if (rv) { const r = $(".reveal", rv.closest(".req")); r.hidden = !r.hidden; if (!r.hidden) $("textarea", r)?.focus(); return; }
+    const btn = e.target.closest("[data-send]");
+    if (!btn) return;
+    const box = btn.closest(".req"), target = box.dataset.target, kind = btn.dataset.send;
+    const ta = btn.closest(".reveal") ? $("textarea", btn.closest(".reveal")) : $('textarea[data-field="text"]', box);
+    const text = (btn.dataset.text || ta?.value || "").trim();
+    const pick = $('input[data-field="pick"]:checked', box)?.value;
+    if (kind === "decide" && !pick) { toast("Pick an option first."); return; }
+    if ((btn.hasAttribute("data-need-text") || kind === "edit" || (kind === "assume" && btn.dataset.verdict === "wrong")) && !text) { toast("Write a sentence or two first."); ta?.focus(); return; }
+    const key = newKey();
+    const attrs = [`key=${key}`, `target=${target}`, pick && `pick=${pick}`, btn.dataset.verdict && `verdict=${btn.dataset.verdict}`, btn.dataset.response && `response=${btn.dataset.response}`].filter(Boolean).join(" ");
+    const msg = `[design-doc ${kind} ${attrs}] ${text}`.trim().slice(0, 3900);
+    const rec = { kind, target, pick: pick || null, verdict: btn.dataset.verdict || null, response: btn.dataset.response || null, text, key, at: new Date().toISOString() };
+    if (sendState !== "available") {
+      try { await navigator.clipboard.writeText(msg); toast("Copied. Paste it into the Claude Code session."); } catch { toast("Paste this into Claude Code: " + msg); }
+      return;
+    }
+    try {
+      btn.disabled = true;
+      await send(box, msg);
+      inputs[target] = rec; local.inputs[target] = rec;
+      if (ta?.dataset.draft) delete local.drafts[ta.dataset.draft];
+      saveLocal(); renderSent();
+      if (inputsColl) inputsColl.doc(target).set(rec).catch(() => {});
+    } catch (err) { toast(errText(err)); refreshSend(); }
+    finally { btn.disabled = false; }
+  });
+
+  // Unsent text (a half-written rationale) survives reloads in this browser.
+  $$("textarea[data-draft]").forEach((t) => {
+    t.value = local.drafts[t.dataset.draft] || "";
+    t.addEventListener("input", () => { local.drafts[t.dataset.draft] = t.value; saveLocal(); });
+  });
+
+  // ---- asking: the session answers with the whole repo; fallback is a quick answer from the doc text
+  function renderAnswers() {
+    $$(".ask").forEach((box) => {
+      const t = box.dataset.ask, list = $(".answers", box);
+      list.replaceChildren();
+      const items = Object.entries(asks).filter(([, a]) => a.target === t).sort((x, y) => (x[1].at || "").localeCompare(y[1].at || ""));
+      for (const [key, a] of items) {
+        const qa = document.createElement("div"); qa.className = "qa";
+        for (const turn of a.turns || []) {
+          const q = document.createElement("p"); q.className = "q"; q.textContent = turn.q;
+          const ans = document.createElement("p"); ans.className = "a" + (turn.a ? "" : " muted"); ans.textContent = turn.a || "Claude is looking into it…";
+          qa.append(q, ans);
+        }
+        const row = document.createElement("div"); row.className = "askrow followup";
+        const input = document.createElement("input"); input.type = "text"; input.placeholder = "Follow up"; input.setAttribute("aria-label", "Follow up on this answer");
+        const b = document.createElement("button"); b.type = "button"; b.textContent = "Send";
+        const go = () => followUp(key, input);
+        b.addEventListener("click", go); input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); go(); } });
+        row.append(input, b); qa.append(row); list.append(qa);
+      }
+      for (const turn of quick[t] || []) {
+        const qa = document.createElement("div"); qa.className = "qa quick";
+        const q = document.createElement("p"); q.className = "q"; q.textContent = turn.q;
+        const ans = document.createElement("p"); ans.className = "a" + (turn.err ? " err" : turn.a ? "" : " muted"); ans.textContent = turn.a || "Thinking…";
+        const note = document.createElement("p"); note.className = "muted small"; note.textContent = "Quick answer from the doc text only. It can't read the code.";
+        qa.append(q, ans, note); list.append(qa);
+      }
+    });
+  }
+  async function ask(box) {
+    const t = box.dataset.ask, input = $("input", box), q = input.value.trim();
+    if (!q) return;
+    if (sendState === "available") {
+      const key = newKey();
+      try {
+        const res = await send(box, `[design-doc ask key=${key} target=${t}] ${q}`);
+        input.value = "";
+        asks[key] = { target: t, at: new Date().toISOString(), turns: [{ q }], threadId: res.threadId }; renderAnswers();
+        if (asksColl) asksColl.doc(key).set(asks[key]).catch(() => {});
+      } catch (e) { toast(errText(e)); refreshSend(); }
+      return;
+    }
+    if (!sample) {
+      try { await navigator.clipboard.writeText(`About the design doc ${T.key}, ${t} (${T.titles[t] || t}): ${q}`); toast("Copied. Paste the question into Claude Code."); }
+      catch { toast("Ask in Claude Code: " + q); }
+      return;
+    }
+    input.value = "";
+    const turn = { q, a: "" }; (quick[t] ||= []).push(turn); renderAnswers();
+    const h = (history[t] ||= []);
+    h.push({ role: "user", content: h.length ? q : `You help an engineer think through a design doc they are writing. Answer from the doc below only; if the answer needs the code, say what to look at. Be short and concrete. Plain text.\n\n=== The doc ===\n${T.doc}\n\n=== They are looking at: ${t} ${T.titles[t] || ""} ===\n\n=== Question ===\n${q}` });
+    try {
+      const res = await sample(h.slice(), { cache: false, onText: ({ text }) => { turn.a = text; renderAnswers(); } });
+      turn.a = res.text; h.push({ role: "assistant", content: res.text });
+    } catch (e) { h.pop(); turn.err = true; turn.a = "No answer: " + (e?.message || e?.code || "unknown error"); }
+    renderAnswers();
+  }
+  async function followUp(key, input) {
+    const a = asks[key], q = input.value.trim();
+    if (!a || !q) return;
+    if (sendState !== "available") { toast("Not connected to the session. Ask in Claude Code."); return; }
+    try {
+      await send(null, `[design-doc ask key=${key} target=${a.target}] ${q}`, a.threadId);
+      input.value = ""; a.turns = [...(a.turns || []), { q }]; renderAnswers();
+      if (asksColl) asksColl.doc(key).set(a).catch(() => {});
+    } catch (e) { toast(errText(e)); refreshSend(); }
+  }
+  $$(".ask").forEach((box) => {
+    $(".askgo", box).addEventListener("click", () => ask(box));
+    $("input", box).addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); ask(box); } });
+  });
+
+  // ---- table of contents highlight
+  const links = new Map($$("nav.toc a").map((a) => [a.getAttribute("href").slice(1), a]));
+  if ("IntersectionObserver" in window) {
+    const io = new IntersectionObserver((ents) => ents.forEach((en) => {
+      if (en.isIntersecting) { links.forEach((a) => a.classList.remove("here")); links.get(en.target.id)?.classList.add("here"); }
+    }), { rootMargin: "-20% 0px -70% 0px" });
+    $$("main > section[id], .dcard[id]").forEach((s) => io.observe(s));
+  }
+  if (window.mermaid) {
+    try { mermaid.initialize({ startOnLoad: false, theme: matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default" }); mermaid.run({ querySelector: "pre.mermaid" }); } catch {}
+  }
+  // Jump to the first thing waiting on the human.
+  if (!location.hash && T.waiting.length) { const w = T.waiting[0].id; (document.getElementById(w) || document.getElementById("req-" + w))?.scrollIntoView({ block: "start" }); }
+
+  renderSent(); renderAnswers();
+  $("#storeState").textContent = "";
+  const use = window.claude && window.claude.use ? (n) => window.claude.use(n).catch(() => null) : async () => null;
+  use("sample").then((s) => { if (s) { sample = s; refreshSend(); } });
+  use("comments").then((c) => { comments = c; refreshSend(); });
+  window.addEventListener("focus", () => refreshSend());
+  refreshSend();
+  use("db").then((db) => {
+    if (!db) return;
+    inputsColl = db.collection("inputs");
+    asksColl = db.collection("asks");
+    inputsColl.onSnapshot((snap) => { snap.docs.forEach((d) => { const v = d.data() || {}; if (!inputs[d.id] || (v.at || "") > inputs[d.id].at) inputs[d.id] = v; }); renderSent(); }, () => {});
+    asksColl.onSnapshot((snap) => { snap.docs.forEach((d) => { asks[d.id] = d.data() || {}; }); renderAnswers(); }, () => {});
+  });
+})();
+</script>

@@ -1,0 +1,11 @@
+{
+  "name": "interactive-ai",
+  "owner": { "name": "Oz Sayag" },
+  "plugins": [
+    {
+      "name": "interactive-ai",
+      "source": "./",
+      "description": "Guided PR review tours (pr-tour) and interactive design docs (design-doc)."
+    }
+  ]
+}
