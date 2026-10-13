@@ -126,6 +126,13 @@ def validate(d):
         elif i in ids:
             errs.append(f"id {i} is used twice")
         ids[i] = kind
+    f = d.get("frame", {})
+    if f.get("status") not in ("clarifying", "draft", "approved"):
+        errs.append("frame.status must be clarifying, draft or approved")
+    if f.get("status") == "clarifying" and f.get("assumptions"):
+        errs.append("no assumptions while clarifying: ask instead, then draft the Frame")
+    if f.get("status") == "draft" and len(f.get("assumptions", [])) > 3:
+        errs.append("more than 3 assumptions: the prompt is too vague to guess; switch the Frame to clarifying")
     if d.get("stage") not in STAGE_IDS:
         errs.append(f"stage must be one of {STAGE_IDS}")
     targets = set(ids) | {"frame", "ground", "decisions", "design", "doc"}
@@ -234,8 +241,37 @@ def later(text):
     return f'<p class="later">{esc(text)}</p>'
 
 
+def sec_clarify(ctx, d):
+    """A vague prompt: build the Frame through a short interview, one question at a time."""
+    f = d.get("frame", {})
+    qs = [q for q in d.get("questions", []) if q.get("target") == "frame"]
+    asked = "".join(f'<li><p class="q">{ctx.inline(q.get("q"))}</p><p class="human">{esc(q.get("answer") or "Not sure yet.")}</p></li>'
+                    for q in qs if q.get("status", "open") != "open")
+    cur = next((q for q in qs if q.get("status", "open") == "open"), None)
+    if cur:
+        opts = "".join(f'<button type="button" data-send="answer" data-text="{esc(o)}">{esc(o)}</button>' for o in cur.get("options", []))
+        found = f'<p class="small muted">{ctx.inline(cur["found"])}</p>' if cur.get("found") else ""
+        now = req(cur["id"], f'''<h3 class="cq">{ctx.inline(cur.get("q"))}</h3>{found}
+          <textarea data-field="text" data-draft="clarify-{esc(cur["id"])}" rows="3" placeholder="In your own words" aria-label="Your answer"></textarea>
+          <div class="btns"><button type="button" class="primary" data-send="answer" data-need-text>Send</button>{opts}<button type="button" data-send="park">Skip this one</button></div>''', cls="qcard clarify")
+    else:
+        now = '<p class="working"><span class="pulse"></span> Thinking about what to ask next.</p>'
+    understood = ctx.ul(f.get("understood"))
+    tell = req("frame", '''<details class="editbox"><summary>Rather just describe it? Tell Claude in your own words</summary>
+      <textarea data-field="text" rows="4" placeholder="What you want, why now, who it is for, what done looks like. Any of it helps." aria-label="Describe what you want"></textarea>
+      <div class="btns"><button type="button" data-send="tell" data-need-text>Send</button></div></details>''', anchor=False)
+    enough = req("frame", '<div class="btns"><button type="button" data-send="enough">Enough questions, draft the Frame</button></div>', anchor=False)
+    return f'''<p>Your prompt left a lot open, so instead of guessing, Claude will ask a few short questions, one at a time. The Frame is written from your answers.</p>
+      {f'<div class="understood"><h3>What I understand so far</h3>{understood}</div>' if understood else ""}
+      {f'<ol class="asked">{asked}</ol>' if asked else ""}
+      {now}{tell}
+      {enough if asked else ""}{ask_box("frame")}'''
+
+
 def sec_frame(ctx, d):
     f = d.get("frame", {})
+    if f.get("status") == "clarifying":
+        return sec_clarify(ctx, d)
     if not f.get("problem"):
         return later("Claude is reading the code and drafting what it thinks you want.")
     approved = f.get("status") == "approved"
@@ -457,7 +493,9 @@ def waiting_list(d):
     for q in d.get("questions", []):
         if q.get("status", "open") == "open":
             targets.append({"id": q["id"], "label": f"Answer: {q.get('q', '')}"})
-    if d.get("frame", {}).get("problem") and d["frame"].get("status") == "draft":
+    if d.get("frame", {}).get("status") == "clarifying":
+        targets = targets[:1]  # one interview question at a time
+    elif d.get("frame", {}).get("problem") and d["frame"].get("status") == "draft":
         targets.append({"id": "frame", "label": "Approve or correct the Frame"})
     if d.get("ground", {}).get("status") == "draft":
         targets.append({"id": "ground", "label": "Confirm how it works today"})

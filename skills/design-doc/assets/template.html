@@ -133,6 +133,13 @@ button.rec { border-color: var(--accent); }
 .qcard { background: var(--accent-soft); border-radius: 8px; padding: 0.6rem 1rem; margin: 1rem 0; }
 .qcard.done { background: var(--sunk); }
 .qcard h4 { margin: 0.2rem 0 0.4rem; }
+.qcard.clarify { padding: 0.8rem 1.1rem; }
+.cq { margin: 0.1rem 0 0.4rem; font-size: 1.15rem; }
+.understood { border-left: 3px solid var(--ok); padding: 0.1rem 0 0.1rem 0.9rem; margin: 1rem 0; }
+.understood h3 { margin-top: 0.2rem; }
+ol.asked { padding-left: 1.2rem; display: grid; gap: 0.5rem; margin: 1rem 0; }
+ol.asked .q { margin: 0; font-weight: 500; }
+ol.asked .human { margin: 0.1rem 0 0; }
 
 .dcard { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 0.8rem 1.1rem; margin: 1.1rem 0; }
 .dcard.open { border: 2px solid var(--accent); }
@@ -237,7 +244,7 @@ details.dcard > summary::-webkit-details-marker, details.dsec > summary::-webkit
   // ---- what was sent but not yet reflected in this render
   const sentSince = (target) => { const i = inputs[target]; return i && i.at > T.renderedAt ? i : null; };
   const kindText = { approve: "Approved", edit: "Change requested", assume: "Marked", answer: "Answered", decide: "Decided", park: "Parked",
-    reopen: "Reopen requested", respond: "Response sent", defend: "Answer sent", finalize: "Sign-off requested" };
+    reopen: "Reopen requested", respond: "Response sent", defend: "Answer sent", finalize: "Sign-off requested", tell: "Sent", enough: "Drafting the Frame requested" };
   function renderSent() {
     $$(".req").forEach((box) => {
       const i = sentSince(box.dataset.target);

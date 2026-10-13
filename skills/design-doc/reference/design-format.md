@@ -15,7 +15,8 @@ write questions and decision cards: `reference/questions.md`.
   "status": { "working": "What Claude is doing now, one line. Empty when idle." },
 
   "frame": {
-    "status": "draft | approved",
+    "status": "clarifying | draft | approved",   // clarifying: a vague prompt, interview first (SKILL step 1)
+    "understood": ["While clarifying: what Claude has learned so far, one short line each, in the human's terms."],
     "problem": "md. The problem, in the human's terms. No solution yet.",
     "who": "md. Who has the problem and what it costs them.",
     "goals": ["One outcome per item."],
@@ -23,7 +24,7 @@ write questions and decision cards: `reference/questions.md`.
     "done": ["How we will know it worked: observable, checkable."],
     "constraints": ["Hard limits: compatibility, deadlines, team rules, budgets."],
     "assumptions": [
-      // Claude guessed these; the human marks each right or wrong. A wrong one gets a correction.
+      // Claude guessed these; the human marks each right or wrong. At most 3, none while clarifying.
       { "id": "A1", "text": "The guess, one sentence.", "why": "What made Claude guess it.",
         "verdict": null, "correction": "" }      // verdict: null | "right" | "wrong"
     ]
@@ -111,6 +112,7 @@ write questions and decision cards: `reference/questions.md`.
 
 ## Rules render.py enforces
 
+- `frame.status` is clarifying, draft or approved. No assumptions while clarifying; at most 3 in a draft.
 - Ids are unique across the doc. A question's or objection's `target` exists. `dependsOn` refers to decisions.
 - A decided decision has a `pick` that is one of its options. A decision's `recommend` is one of its options.
 - An open decision's dependencies are all decided. At most one decision and one design section are open at a time.
@@ -141,6 +143,8 @@ Requests reach the session as comments sent to Claude:
 | `edit` | any | Change this part as the text says. |
 | `assume` | `A<n>` | The assumption is right or wrong (`verdict`), with a correction. |
 | `answer` | `Q<n>` | The answer to Claude's question. |
+| `tell` | `frame` | While clarifying: the human describes what they want in their own words. |
+| `enough` | `frame` | While clarifying: stop asking and draft the Frame from what you have. |
 | `decide` | `D<n>` | `pick` plus the rationale in the text. |
 | `park` | `D<n>`, `Q<n>`, `O<n>` | Not sure yet. |
 | `reopen` | `D<n>` | Revisit a decided decision; the text says why. |

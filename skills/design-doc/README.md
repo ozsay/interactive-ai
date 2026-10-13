@@ -19,7 +19,7 @@ call, in your own words.
 
 | Stage | Claude | You |
 |---|---|---|
-| **1 · Frame** | Writes what it thinks you want: problem, goals, non-goals, success criteria, constraints, and the assumptions it had to make. | Mark each assumption right or wrong, correct the rest, approve. |
+| **1 · Frame** | If your prompt is vague, asks a few short questions first, one at a time, and shows what it has understood so far. Then writes what you want: problem, goals, non-goals, success criteria, constraints, and at most three risky assumptions. | Answer in your own words (or just describe it), then correct the Frame and approve. |
 | **2 · How it works today** | Explains the code the work touches, for someone who has never opened it, plus what surprised it. | Confirm you understand it, or ask. |
 | **3 · Decisions** | Lists the decisions the work needs, then brings **one card at a time**: why it matters, two or three real options with evidence, a recommendation, and what it locks in. | Pick, and write *why* in your own words. Claude checks your reason against the code and tells you if it has a gap. |
 | **4 · Design** | Writes the sections that follow from your decisions, one at a time. | Approve or correct each one. |

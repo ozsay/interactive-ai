@@ -37,7 +37,7 @@ python3 SKILL_DIR/scripts/new_run.py new <slug>        # prints RUN
 `research/`. Set `seed` to the human's prompt, verbatim, and pick a short `title`.
 
 Spend two minutes, no more, finding the code the work touches (grep, the obvious entry points).
-Then write the **Frame** (step 1) and publish (step 7) at once. Right after publishing, start the
+Then start step 1 (an interview question, or the drafted Frame) and publish (step 7) at once. Right after publishing, start the
 Ground research in the background (step 2).
 
 For **resume**: `new_run.py list`, pick the run (ask if there are several), `new_run.py show RUN`,
@@ -46,23 +46,37 @@ Tell the human in one line where things stand and what waits on them.
 
 ## 1 · Frame: "what I think you want"
 
-Fill `frame`: `problem` (in the human's terms, no code), `who`, `goals`, `nonGoals`, `done`
-(observable success criteria), `constraints`, and **3 to 5 `assumptions`**: the guesses you made
-to fill gaps in the prompt, each with `why` you guessed it. Assumptions are the cheapest place to
-catch a misunderstanding, so make the risky guesses explicit instead of silently choosing.
-Add at most three `questions` with `target: "frame"` for what you can't guess at all.
+**First decide whether the prompt is clear enough to frame.** It is when you can write the problem
+and the goals without guessing at either. If you can't, don't draft a Frame full of guesses:
+**interview** first. A one-line prompt ("user/workspace type changes") is almost
+always an interview.
 
-The human marks each assumption right or wrong, answers questions, asks for edits, and approves.
-Apply edits and corrections, republish, and repeat until approved. On approve: `frame.status` =
-`approved`, `stage` = `ground`, log it.
+**Interview** (`frame.status` = `clarifying`). Follow "Interviewing on a vague prompt" in
+`reference/questions.md`. Add one `question` with `target: "frame"` at a time: an open question,
+grounded in one line of what the code shows, answered in free text. After each `answer` or `tell`,
+add what you learned to `frame.understood`, then ask the next question, and publish. The human can
+also describe it all in their own words (`tell`) or say `enough`. Stop when you can write the
+problem and the goals without guessing (usually three to five questions), then draft the Frame.
+
+**Draft the Frame** (`frame.status` = `draft`): `problem` (in the human's terms, no code), `who`,
+`goals`, `nonGoals`, `done` (observable success criteria) and `constraints`. After an interview,
+write it from the answers and `understood`. Add **at most three `assumptions`**: only guesses that
+are risky if wrong, each with `why` you guessed it. If you need more than three, you should be
+interviewing instead. render.py refuses more than three.
+
+The human marks assumptions right or wrong, asks for edits, and approves. Apply edits and
+corrections, republish, and repeat until approved. On approve: `frame.status` = `approved`,
+`stage` = `ground`, log it.
 
 ## 2 · Ground: how it works today
 
-Start this in the background as soon as the Frame is published: an `Agent` (model and effort from
+Start this in the background as soon as the Frame is published, or once the interview has settled the scope: an `Agent` (model and effort from
 `models.json` → `researcher`) with `prompts/researcher.md` filled by `fill_prompt.py`
 (`FRAME=@RUN/research/frame.md`, `TASK=` "how the touched code works today, invariants, surprises,
 and the decisions this work needs", `OUT=RUN/research/ground.md`). Write `research/frame.md` from
-the Frame first. Rerun it if the Frame changes in a way that matters.
+the Frame first (while interviewing: from the seed and `understood`, and start the research once
+the scope is clear enough to point it at the right code). Rerun it if the Frame changes in a way
+that matters.
 
 When the Frame is approved, fill `ground` from the notes, checking anything surprising yourself:
 `summary`, `pieces` (three to six, plain names), `flow`, an optional mermaid `diagram`,

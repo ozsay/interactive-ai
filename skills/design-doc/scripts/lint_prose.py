@@ -60,6 +60,11 @@ def main():
     out = []
     f, g = d.get("frame", {}), d.get("ground", {})
     check("frame.problem", f.get("problem"), out, plain=True)
+    open_frame = [q for q in d.get("questions", []) if q.get("target") == "frame" and q.get("status", "open") == "open"]
+    if f.get("status") == "clarifying" and len(open_frame) > 1:
+        out.append(f"frame: {len(open_frame)} interview questions open; ask one at a time")
+    if f.get("status") == "draft" and len(f.get("assumptions", [])) > 3:
+        out.append("frame: more than 3 assumptions; the prompt is too vague, interview instead (frame.status = clarifying)")
     for k in ("who", "goals", "nonGoals", "done", "constraints"):
         check(f"frame.{k}", f.get(k), out)
     for a in f.get("assumptions", []):
@@ -93,7 +98,8 @@ def main():
     for q in d.get("questions", []):
         i = q.get("id")
         check(f"{i}.q", q.get("q"), out)
-        if q.get("status", "open") == "open":
+        interview = f.get("status") == "clarifying" and q.get("target") == "frame"
+        if q.get("status", "open") == "open" and not interview:
             for k, why in (("found", "what you already found"), ("why", "why you can't decide alone"), ("changes", "what changes with the answer")):
                 if not q.get(k):
                     out.append(f"{i}: missing `{k}` ({why})")

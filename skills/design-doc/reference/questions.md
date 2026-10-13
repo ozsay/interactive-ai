@@ -12,6 +12,26 @@ fact or an assumption the human can flip.
 Things only the human can answer: intent and priorities, what the users or the business need, team
 and org constraints, risk appetite, deadlines, what they have seen in production, and taste.
 
+## Interviewing on a vague prompt (`frame.status: clarifying`)
+
+A short or vague prompt is not a reason to guess. It is a reason to ask, the way a colleague would
+before writing anything. The interview replaces the assumptions list: the human shouldn't have to
+approve or reject a page of guesses they never made.
+
+- **One question at a time.** Ask the next one only after the answer, and let the answer shape it.
+- **Open questions first, in the human's terms.** "What made you want this now?", "Who runs into
+  this, and what do they see?", "What would be true when it's done?". Offer quick answers only
+  when the choices are obvious and few; the free-text answer comes first.
+- **Ground each question in one line of what you found** (`found`), so it isn't asked in a vacuum:
+  "Exports today run inline in the request and time out above 30 MB. What should change for the
+  people hitting that?"
+- **Most scope-shaping first.** The answer that rules out the most work goes first.
+- **After each answer, update `understood`**: a few short lines, in the human's words where
+  possible. It is what the Frame will be written from, so the human can correct it early.
+- **Stop when you can write the problem and the goals without guessing.** Usually three to five
+  questions. Never more than seven: then draft and let the human correct the draft.
+- **"Enough"** from the human means draft now, with what you have.
+
 ## A good question (`questions[]`)
 
 - **Sits where it matters.** Its `target` is the section or decision it changes. Never a loose
