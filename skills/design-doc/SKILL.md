@@ -20,8 +20,9 @@ reading code, drafting options, finding evidence. The human makes every call and
 - **Small screens.** A card is about 200 words; a design section under 400. Detail goes behind Ask.
 - **Questions carry context and sit where they matter.** `reference/questions.md`. Never ask what
   the code can answer. At most three open questions at a time.
-- **The human writes the why.** Never write or draft `rationale`, an objection response or a
-  defense answer. Check them, and say plainly when one has a gap.
+- **The human writes the why.** A decision's reason is optional, but when there is one it is theirs.
+  Never write or draft `rationale`, an objection response or a defense answer. Check them, and say
+  plainly when one has a gap.
 - **The human never waits on you.** While they read stage N, a background agent researches N+1.
 - **Say what you are doing.** Keep `status.working` current, and empty when you are idle.
 - **Everything is logged.** Each human call goes into `log` with the time, so the doc keeps its history.
@@ -59,7 +60,10 @@ also describe it all in their own words (`tell`) or say `enough`. Stop when you 
 problem and the goals without guessing (usually three to five questions), then draft the Frame.
 
 **Draft the Frame** (`frame.status` = `draft`): `problem` (in the human's terms, no code), `who`,
-`goals`, `nonGoals`, `done` (observable success criteria) and `constraints`. After an interview,
+`goals`, `nonGoals`, `done` (observable success criteria) and `constraints`. **`nonGoals` holds only what the
+human said is out of scope**, in their words. Don't promote a default ("the prompt stays as it
+is") into a non-goal: if it is a real choice, it is a decision for step 3; if it is a guess, it is
+an assumption. After an interview,
 write it from the answers and `understood`. Add **at most three `assumptions`**: only guesses that
 are risky if wrong, each with `why` you guessed it. If you need more than three, you should be
 interviewing instead. render.py refuses more than three.
@@ -87,28 +91,35 @@ don't quietly change an approved Frame.
 
 On approve: `stage` = `decide`, log it.
 
-## 3 · Decide: one card at a time
+## 3 · Decide: a suggested answer for each
 
-First the list. From the research, write every decision the work needs as `upcoming` cards with
-`id`, `title`, `question`, `dependsOn` and `key`, ordered so a decision comes after what it
-depends on. Set `decisionsStatus` = `proposed` and publish. The human adds, merges or drops
-decisions, then approves the list. Don't invent decisions to look thorough; three to seven is typical.
+From the research, write every decision the work needs, ordered so a decision comes after what it
+depends on. Don't invent decisions to look thorough; three to seven is typical. **Every decision
+arrives with a suggested answer**: a question alone gives the human nothing to approve. Fill
+`id`, `title`, `question`, `dependsOn`, `key`, `matters`, `options` (two or three real ones, with
+`pros`, `cons`, `evidence`, `cost`), `recommend`, `recommendWhy` and `locksIn`. Follow
+`reference/questions.md`.
 
-Then the cards. Open the first decision whose dependencies are decided: fill `matters`, `options`
-(two or three real ones, with `pros`, `cons`, `evidence`, `cost`), `recommend`, `recommendWhy`
-and `locksIn`. Follow `reference/questions.md`. Set it `open`, publish. **Only one card is open
-at a time.** While the human works on it, research the next card in the background.
+Set each decision whose dependencies are decided to `open`, the rest to `upcoming` (they show their
+suggestion, read-only, until what they wait on is decided). Set `decisionsStatus` = `proposed` and
+publish. The page shows the suggestion first; the full options sit behind "See all options". For
+each decision the human approves the suggestion, picks another option, parks it, drops it
+(`edit` "Drop this decision."), or asks for a change. The reason is optional, so an approval can be one
+click; when there is no reason, skip the check.
 
 When the human decides (`decide` with `pick` and their reason):
 
 1. Set `pick`, `rationale` (their words, verbatim) and `status` = `decided`. Log it.
-2. Check the reason against the evidence; write `check` and `checkStatus` (`questions.md`).
+2. If they gave a reason, check it against the evidence; write `check` and `checkStatus` (`questions.md`).
 3. If the pick changes later cards (an option disappears, a new decision is needed), update them
    and say so in the log.
-4. Open the next card, publish.
+4. If the pick goes beyond the Frame (a goal it adds, a non-goal it overrides), the decision wins:
+   update the Frame to match, log it, and say so in the card's `check`. Don't ask again.
+5. Open every decision whose dependencies are now decided; revise its suggestion if the pick
+   changed what it should be. Publish.
 
 `park` sets `status` = `parked`; cards that depend on it wait, others go ahead. `reopen` sets the
-card back to `open` (and closes any other open card), increments `reopened`, and marks dependent
+card back to `open`, increments `reopened`, and marks dependent
 decisions and design sections for review. When every decision is decided, parked or dropped:
 `stage` = `design`.
 
@@ -120,11 +131,13 @@ decisions it follows from). A section that follows from no decision is a decisio
 go back and add the card.
 
 Open one section at a time, as with decisions. Draft the next while the human reads. On the
-human's approve, mark it `approved` and open the next. When all are approved: `stage` = `challenge`.
+human's approve, mark it `approved` and open the next. When all are approved: `stage` = `challenge`, publish, and wait.
 
 ## 5 · Challenge: an independent design review
 
-Write the doc as markdown and start both challengers in the background, in parallel:
+**It never starts on its own.** The page offers "Start the challenge" and "Skip it"; wait for
+`start` or `skip` on `challenge`. On `start`, write the doc as markdown and start both challengers
+in the background, in parallel:
 
 ```bash
 python3 SKILL_DIR/scripts/render.py RUN --md RUN/doc.md
@@ -148,22 +161,31 @@ human asks for evidence, find it, but let them write the response.
 
 When every objection has a response: `stage` = `defend`.
 
+**`skip` on `challenge`** (the human can skip at any point): stop any running challengers, set
+`challengeStatus` = `skipped` if nothing came back, or park every objection still unanswered.
+Log it, set `stage` = `defend`, publish.
+
 ## 6 · Defend, then sign off
 
-Pick four or five `defense` questions from the challengers' `questions`, the hardest ones that
+**It never starts on its own either.** When every objection has a response, set `stage` = `defend`,
+publish, and wait for `start` or `skip` on `defend`. On `start`, pick four or five `defense` questions from the challengers' `questions`, the hardest ones that
 are specific to this design. The human answers each without your help. Grade each answer against
 the doc: `covered`, `partly` or `missing`, with a `note` of one or two sentences saying what's
 missing. A `missing` grade usually means the doc lacks something: offer to add it (a question, a
 section edit) rather than just marking it.
 
+**`skip` on `defend`**: set `defenseStatus` = `skipped`, log it, and treat it like `finalize`'s
+step 1 onward. Unanswered questions stay in the doc, unanswered.
+
 On `finalize`:
 
 1. `python3 SKILL_DIR/scripts/render.py RUN --signoff` must print "ready to sign off".
-2. Ask in this chat (`AskUserQuestion`) where the doc goes, default `docs/design/<slug>.md`, and
-   confirm writing it into the repo. A page click is not that yes.
+2. Ask in this chat (`AskUserQuestion`) where the doc goes: default `docs/design/<slug>.md`, or
+   outside the repo (the scratchpad). Writing into the repo needs that yes; a page click is not it.
 3. `render.py RUN --md <path>`, then write the implementation plan to `RUN/plan.md`: ordered,
    reviewable steps, each tied to the decisions and sections it implements, with how to verify it.
-4. Set `outputs`, `stage` = `done`, publish. Offer to start building from `plan.md`.
+4. Set `outputs` (absolute paths), `stage` = `done`, publish. The page renders both files inline, so
+   the human reads them there. Offer to start building from `plan.md`.
 
 ## 7 · Render and publish
 
@@ -182,8 +204,11 @@ still isn't, tell the human the page can't reach this session and they can answe
 
 Without an `Artifact` tool, open the HTML file in a browser and take every answer in chat.
 
-After each publish, tell the human in one or two lines what is new and what waits on them. **Don't
-repeat the card in chat**: the page is where they read it.
+**The page is the conversation.** Every question, finding, gap and choice goes on the page, never
+only in chat. After each publish, the chat gets one line: what changed and where on the page to
+look. Don't restate the card, the question or its options in chat: a human who reads only the
+page must miss nothing. Use chat for what the page can't carry: confirming a write to the repo,
+or the page being unreachable.
 
 ## 8 · Requests from the page
 

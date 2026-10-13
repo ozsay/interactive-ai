@@ -89,8 +89,8 @@ def main():
                        + [o.get("summary") for o in x.get("options", [])] + sum((o.get("pros", []) + o.get("cons", []) for o in x.get("options", [])), []))
             if card > MAX_CARD:
                 out.append(f"{i}: the card is {card} words; keep it under about {MAX_CARD} so it fits on one screen")
-        if x.get("status") == "decided" and x.get("key") and not x.get("check"):
-            out.append(f"{i}: decided key decision without your `check` of the human's rationale")
+        if x.get("status") == "decided" and (x.get("rationale") or "").strip() and not x.get("check"):
+            out.append(f"{i}: the human gave a reason but there is no `check` of it")
     for s in d.get("design", {}).get("sections", []):
         check(f"section {s.get('id')}", s.get("body"), out)
         if s.get("status") == "open" and words(s.get("body")) > 400:

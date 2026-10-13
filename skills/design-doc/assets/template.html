@@ -244,7 +244,7 @@ details.dcard > summary::-webkit-details-marker, details.dsec > summary::-webkit
   // ---- what was sent but not yet reflected in this render
   const sentSince = (target) => { const i = inputs[target]; return i && i.at > T.renderedAt ? i : null; };
   const kindText = { approve: "Approved", edit: "Change requested", assume: "Marked", answer: "Answered", decide: "Decided", park: "Parked",
-    reopen: "Reopen requested", respond: "Response sent", defend: "Answer sent", finalize: "Sign-off requested", tell: "Sent", enough: "Drafting the Frame requested" };
+    reopen: "Reopen requested", respond: "Response sent", defend: "Answer sent", finalize: "Sign-off requested", skip: "Skip requested", start: "Start requested", tell: "Sent", enough: "Drafting the Frame requested" };
   function renderSent() {
     $$(".req").forEach((box) => {
       const i = sentSince(box.dataset.target);

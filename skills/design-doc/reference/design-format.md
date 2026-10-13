@@ -42,14 +42,14 @@ write questions and decision cards: `reference/questions.md`.
     "see": ["src/queue/worker.ts:40"]
   },
 
-  "decisionsStatus": "pending | proposed | approved",   // proposed: the human approves the list first
+  "decisionsStatus": "pending | proposed | approved",   // proposed: decisions listed, each with a suggested answer
   "decisions": [
     {
       "id": "D1", "title": "Short noun phrase",
       "question": "The decision as one question.",
       "matters": "md. Why this decision matters: what goes wrong if it is made badly.",
       "dependsOn": ["D0"],
-      "key": true,                         // key decisions need the human's rationale to sign off
+      "key": true,                         // key decisions are the ones a reviewer will ask about; the challenge stage tests them
       "status": "upcoming | open | decided | parked | dropped",
       "options": [
         { "id": "a", "name": "Plain name", "summary": "md. What this option means in practice.",
@@ -74,7 +74,7 @@ write questions and decision cards: `reference/questions.md`.
     ]
   },
 
-  "challengeStatus": "pending | running | done",
+  "challengeStatus": "pending | running | done | skipped",
   "challengers": ["Claude Opus 5.5", "Codex gpt-6-astra"],
   "objections": [
     {
@@ -88,6 +88,7 @@ write questions and decision cards: `reference/questions.md`.
     }
   ],
 
+  "defenseStatus": "pending | skipped",   // skipped: the human chose to skip the defense
   "defense": [
     // Questions a skeptical tech lead would ask. The human answers; Claude grades against the doc.
     { "id": "X1", "q": "Why not just extend the existing queue?", "answer": "",
@@ -115,12 +116,12 @@ write questions and decision cards: `reference/questions.md`.
 - `frame.status` is clarifying, draft or approved. No assumptions while clarifying; at most 3 in a draft.
 - Ids are unique across the doc. A question's or objection's `target` exists. `dependsOn` refers to decisions.
 - A decided decision has a `pick` that is one of its options. A decision's `recommend` is one of its options.
-- An open decision's dependencies are all decided. At most one decision and one design section are open at a time.
+- An open decision's dependencies are all decided. Every listed decision has a `recommend`. At most one design section is open at a time.
 - `render.py --signoff` also checks that the doc is ready:
   - every decision is decided, parked or dropped;
-  - every key decision has the human's rationale;
   - every objection has a response;
-  - every defense question has an answer.
+  - every defense question has an answer, unless the defense was skipped;
+  - the challenge ran or was skipped.
 
 ## Page ↔ session data
 
@@ -151,4 +152,6 @@ Requests reach the session as comments sent to Claude:
 | `respond` | `O<n>` | `response` plus the human's words. |
 | `defend` | `X<n>` | The human's answer. |
 | `ask` | any | A question about this part. Answer it; change nothing. |
+| `start` | `challenge`, `defend` | Start that stage; it never starts on its own. |
+| `skip` | `challenge`, `defend` | Skip the rest of that stage. |
 | `finalize` | `doc` | Sign off and write the outputs. |

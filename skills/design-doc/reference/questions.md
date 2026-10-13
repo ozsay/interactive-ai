@@ -64,11 +64,11 @@ fast" *changes:* "No means we need a background job and a status screen: decisio
 - **`locksIn`:** what becomes hard to change after this. It tells the human how careful to be.
 - **About 200 words in all.** It should fit on one screen. Detail goes behind an Ask.
 - **`key: true`** for the decisions the design stands on: the ones a reviewer will ask about. Key
-  decisions need the human's rationale to sign off.
+  decisions are where the challenge stage will push hardest.
 
 ## Checking the human's rationale
 
-After a decision, read the human's reason against the evidence. Write `check` in two or three
+The reason is optional. When the human gives one, read it against the evidence. Write `check` in two or three
 sentences:
 
 - `ok` when the reason holds.

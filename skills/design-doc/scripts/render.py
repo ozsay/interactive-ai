@@ -65,13 +65,14 @@ class Ctx:
         if not text:
             return ""
         out, para, items, fence = [], [], [], None
+        kind = ["ul"]
 
         def flush():
             if para:
                 out.append(f"<p>{self.inline(' '.join(para))}</p>")
                 para.clear()
             if items:
-                out.append("<ul>" + "".join(f"<li>{self.inline(i)}</li>" for i in items) + "</ul>")
+                out.append(f"<{kind[0]}>" + "".join(f"<li>{self.inline(i)}</li>" for i in items) + f"</{kind[0]}>")
                 items.clear()
 
         for line in str(text).splitlines():
@@ -84,10 +85,17 @@ class Ctx:
             elif line.strip().startswith("```"):
                 flush()
                 fence = []
-            elif re.match(r"^\s*[-*] ", line):
-                if para:
+            elif re.match(r"^#{1,4} ", line):
+                flush()
+                level = min(len(line) - len(line.lstrip("#")) + 2, 6)  # page sections own h2
+                out.append(f"<h{level}>{self.inline(line.lstrip('#').strip())}</h{level}>")
+            elif re.match(r"^(\s*[-*] |\d+\. )", line):
+                k = "ol" if re.match(r"^\d+\. ", line) else "ul"
+                if para or (items and kind[0] != k and not line.startswith(" ")):
                     flush()
-                items.append(re.sub(r"^\s*[-*] ", "", line))
+                if not items:
+                    kind[0] = k
+                items.append(re.sub(r"^(\s*[-*] |\d+\. )", "", line))
             elif not line.strip():
                 flush()
             elif items and line.startswith("  "):
@@ -135,7 +143,7 @@ def validate(d):
         errs.append("more than 3 assumptions: the prompt is too vague to guess; switch the Frame to clarifying")
     if d.get("stage") not in STAGE_IDS:
         errs.append(f"stage must be one of {STAGE_IDS}")
-    targets = set(ids) | {"frame", "ground", "decisions", "design", "doc"}
+    targets = set(ids) | {"frame", "ground", "decisions", "design", "challenge", "defend", "doc"}
     by_id = {x["id"]: x for x in decs if x.get("id")}
     for x in decs:
         opts = {o.get("id") for o in x.get("options", [])}
@@ -152,8 +160,9 @@ def validate(d):
                 errs.append(f"{x.get('id')}: dependsOn {dep}, which is not a decision")
             elif x.get("status") == "open" and by_id[dep].get("status") not in ("decided", "dropped"):
                 errs.append(f"{x.get('id')} is open but {dep} is not decided yet")
-    if sum(x.get("status") == "open" for x in decs) > 1:
-        errs.append("more than one decision is open; open one at a time")
+    for x in decs:
+        if x.get("status") in ("open", "upcoming") and d.get("decisionsStatus") in ("proposed", "approved") and not x.get("recommend"):
+            errs.append(f"{x.get('id')}: every listed decision needs a suggested answer (`recommend`)")
     if sum(s.get("status") == "open" for s in d.get("design", {}).get("sections", [])) > 1:
         errs.append("more than one design section is open; open one at a time")
     for x in d.get("questions", []) + d.get("objections", []):
@@ -167,15 +176,13 @@ def blockers(d):
     for x in d.get("decisions", []):
         if x.get("status") not in ("decided", "parked", "dropped"):
             out.append(f"{x['id']} ({x.get('title', '')}) is not decided or parked")
-        elif x.get("status") == "decided" and x.get("key") and not (x.get("rationale") or "").strip():
-            out.append(f"{x['id']} is a key decision without your rationale")
     for sec in d.get("design", {}).get("sections", []):
         if sec.get("status") != "approved":
             out.append(f"design section {sec['id']} ({sec.get('title', '')}) is not approved")
     for o in d.get("objections", []):
         if not (o.get("response") or {}).get("kind"):
             out.append(f"objection {o['id']} has no response")
-    for x in d.get("defense", []):
+    for x in ([] if d.get("defenseStatus") == "skipped" else d.get("defense", [])):
         if not (x.get("answer") or "").strip():
             out.append(f"defense question {x['id']} is not answered")
     for q in d.get("questions", []):
@@ -183,7 +190,7 @@ def blockers(d):
             out.append(f"question {q['id']} is open (answer or park it)")
     if d.get("frame", {}).get("status") != "approved":
         out.append("the Frame is not approved")
-    if d.get("challengeStatus") != "done":
+    if d.get("challengeStatus") not in ("done", "skipped"):
         out.append("the challenge has not run")
     return out
 
@@ -329,24 +336,51 @@ def option_html(ctx, x, o, pickable):
       {ctx.refs(o.get("evidence"))}</label>'''
 
 
+def suggestion_card(ctx, d, x, head):
+    """A decision shown as Claude's suggested answer: approve it, pick another option, or drop it."""
+    st = x.get("status")
+    rec = next((o for o in x.get("options", []) if o.get("id") == x.get("recommend")), {})
+    deps = [i for i in x.get("dependsOn", []) if next((y for y in d.get("decisions", []) if y.get("id") == i), {}).get("status") not in ("decided", "dropped")]
+    sugg = f'''<p class="dq">{ctx.inline(x.get("question"))}</p>
+      <div class="recwhy"><h5>Suggested</h5><p><strong>{esc(rec.get("name"))}</strong></p>{ctx.md(rec.get("summary"))}{ctx.md(x.get("recommendWhy"))}</div>
+      {f'<p class="small muted">Why it matters: {ctx.inline(x["matters"])}</p>' if x.get("matters") else ""}'''
+    opts = "".join(option_html(ctx, x, o, st == "open") for o in x.get("options", []))
+    locks = f'<h5>What this locks in</h5>{ctx.md(x["locksIn"])}' if x.get("locksIn") else ""
+    drop = req(x["id"], '<div class="btns"><button type="button" data-send="edit" data-text="Drop this decision.">Drop this decision</button></div>', anchor=False)
+    if st == "upcoming":
+        wait = f'<p class="small muted">You can approve this once {", ".join(deps)} {"is" if len(deps) == 1 else "are"} decided; the suggestion may change with {"it" if len(deps) == 1 else "them"}.</p>' if deps else ""
+        more = f'<details class="editbox"><summary>See all options</summary><div class="opts">{opts}</div>{locks}</details>'
+        return f'<div class="dcard later" id="{esc(x["id"])}">{head}{sugg}{wait}{more}{drop}{edit_box(x["id"], "Reword it, split it, or merge it with another")}{ask_box(x["id"])}</div>'
+    need = "Optional. It is what you will say when someone asks, and the challenge stage will test it."
+    why = lambda sfx: (f'<label class="lbl" for="why-{esc(x["id"])}{sfx}">Why, in your own words</label><p class="small muted">{need} Claude checks it against the evidence; it won\'t write it for you.</p>'
+                       f'<textarea id="why-{esc(x["id"])}{sfx}" data-field="text" data-draft="why-{esc(x["id"])}{sfx}" rows="2" placeholder="We do this because…"></textarea>')
+    need_text = ""
+    approve = req(x["id"], f'''<input type="radio" hidden checked data-field="pick" value="{esc(rec.get("id"))}" aria-hidden="true">{why("")}
+      <div class="btns"><button type="button" class="primary" data-send="decide"{need_text}>Approve the suggestion</button>
+      <button type="button" data-send="park">Not sure yet</button></div>''', cls="decide")
+    other = f'''<details class="editbox"><summary>See all options, or pick another</summary>{req(x["id"], f'<div class="opts">{opts}</div>{locks}{why("-o")}<div class="btns"><button type="button" data-send="decide"{need_text}>Decide with this option</button></div>', anchor=False)}</details>'''
+    return f'<div class="dcard open" id="{esc(x["id"])}">{head}{sugg}{question_cards(ctx, d, x["id"])}{approve}{other}{drop}{edit_box(x["id"], "e.g. there is a third option: …; reword the question")}{ask_box(x["id"])}</div>'
+
+
 def decision_card(ctx, d, x):
     st = x.get("status")
     head = f'<p class="eyebrow">{esc(x["id"])}{" · key decision" if x.get("key") else ""}</p><h3 class="dtitle">{esc(x.get("title"))}</h3>'
-    if st in ("upcoming", "dropped"):
-        deps = ", ".join(x.get("dependsOn", []))
-        return f'<div class="dcard later" id="{esc(x["id"])}">{head}<p class="muted">{"Dropped." if st == "dropped" else ("Waits on " + deps + "." if deps else "Comes later.")} {ctx.inline(x.get("question"))}</p></div>'
+    if st == "dropped":
+        return f'<div class="dcard later" id="{esc(x["id"])}">{head}<p class="muted">Dropped. {ctx.inline(x.get("question"))}</p></div>'
+    if st in ("open", "upcoming"):
+        return suggestion_card(ctx, d, x, head)
     body = f'''<p class="dq">{ctx.inline(x.get("question"))}</p>{f'<h5>Why it matters</h5>{ctx.md(x["matters"])}' if x.get("matters") else ""}'''
     opts = "".join(option_html(ctx, x, o, st == "open") for o in x.get("options", []))
     rec = f'<div class="recwhy"><h5>Why Claude recommends {esc(next((o["name"] for o in x["options"] if o["id"] == x.get("recommend")), ""))}</h5>{ctx.md(x.get("recommendWhy"))}</div>' if x.get("recommend") else ""
     locks = f'<h5>What this locks in</h5>{ctx.md(x["locksIn"])}' if x.get("locksIn") else ""
     qs = question_cards(ctx, d, x["id"])
     if st == "open":
-        need = "Required: this is a key decision, so the doc needs your reason." if x.get("key") else "Optional, but it is what you will say when someone asks."
+        need = "Optional. It is what you will say when someone asks, and the challenge stage will test it."
         decide = req(x["id"], f'''<div class="opts">{opts}</div>{rec}{locks}
           <label class="lbl" for="why-{esc(x["id"])}">Why you picked it, in your own words</label>
           <p class="small muted">{need} Claude checks it against the evidence; it won't write it for you.</p>
           <textarea id="why-{esc(x["id"])}" data-field="text" data-draft="why-{esc(x["id"])}" rows="3" placeholder="We pick this because…"></textarea>
-          <div class="btns"><button type="button" class="primary" data-send="decide"{" data-need-text" if x.get("key") else ""}>Decide</button>
+          <div class="btns"><button type="button" class="primary" data-send="decide">Decide</button>
           <button type="button" data-send="park">Not sure yet</button></div>''', cls="decide")
         return f'<div class="dcard open" id="{esc(x["id"])}">{head}{body}{qs}{decide}{edit_box(x["id"], "e.g. there is a third option: …; option b also costs …")}{ask_box(x["id"])}</div>'
     if st == "parked":
@@ -355,8 +389,10 @@ def decision_card(ctx, d, x):
     pick = next((o for o in x.get("options", []) if o.get("id") == x.get("pick")), {})
     gap = x.get("checkStatus") == "gap"
     check = f'<div class="check {"gap" if gap else "okc"}"><h5>{"Claude found a gap in the reason" if gap else "Claude checked the reason"}</h5>{ctx.md(x.get("check"))}</div>' if x.get("check") else ""
-    return f'''<details class="dcard decided" id="{esc(x["id"])}"{" open" if gap else ""}><summary>{head}<p><span class="chip okchip">Decided</span> {esc(pick.get("name"))}{f' <span class="muted small">(reopened {x["reopened"]}×)</span>' if x.get("reopened") else ""}</p></summary>
-      {body}<h5>Your reason</h5><blockquote class="human">{esc(x.get("rationale") or "No reason given.")}</blockquote>{check}
+    qs = question_cards(ctx, d, x["id"])
+    waiting = any(q.get("target") == x["id"] and q.get("status", "open") == "open" for q in d.get("questions", []))
+    return f'''<details class="dcard decided" id="{esc(x["id"])}"{" open" if gap or waiting else ""}><summary>{head}<p><span class="chip okchip">Decided</span> {esc(pick.get("name"))}{f' <span class="muted small">(reopened {x["reopened"]}×)</span>' if x.get("reopened") else ""}</p></summary>
+      {qs}{body}<h5>Your reason</h5><blockquote class="human">{esc(x.get("rationale") or "No reason given.")}</blockquote>{check}
       <div class="opts">{opts}</div>{locks}
       {req(x["id"], REOPEN, anchor=False)}{ask_box(x["id"])}</details>'''
 
@@ -370,8 +406,9 @@ def sec_decide(ctx, d):
                    f'<td class="muted">{esc(", ".join(x.get("dependsOn", [])) or "–")}</td><td><span class="dst {esc(x.get("status"))}">{esc(x.get("status"))}</span></td></tr>' for x in decs)
     table = f'<div class="tablewrap"><table class="dlist"><thead><tr><th></th><th>Decision</th><th>Waits on</th><th>State</th></tr></thead><tbody>{rows}</tbody></table></div>'
     if st == "proposed":
-        intro = "<p>These are the decisions Claude thinks this work needs, in the order they depend on each other. Add, merge or drop any before we start.</p>"
-        return intro + table + question_cards(ctx, d, "decisions") + req("decisions", '<div class="btns"><button type="button" class="primary" data-send="approve">Start with these</button></div>', cls="gate") + edit_box("decisions", "e.g. add a decision about rollout; D3 and D4 are the same") + ask_box("decisions")
+        intro = ("<p>Each decision below comes with Claude's suggested answer. Approve it, pick another option, or drop the decision. "
+                 "Decisions that wait on another one can be approved once that one is decided.</p>")
+        return intro + table + "".join(decision_card(ctx, d, x) for x in decs) + question_cards(ctx, d, "decisions") + edit_box("decisions", "e.g. a decision is missing: rollout; D3 and D4 are the same")
     return table + "".join(decision_card(ctx, d, x) for x in decs) + question_cards(ctx, d, "decisions")
 
 
@@ -395,10 +432,22 @@ def sec_design(ctx, d):
 
 def sec_challenge(ctx, d):
     st = d.get("challengeStatus", "pending")
+    skip = req("challenge", '<div class="btns"><button type="button" data-send="skip">Skip the challenge</button></div>', anchor=False)
+    if st == "skipped":
+        return '<p class="muted">Skipped. No independent review ran.</p>'
     if st == "pending":
-        return later("Comes after the design. Reviewers who took no part in the planning will read the doc cold and object.")
+        if d.get("stage") != "challenge":
+            return later("Comes after the design. Reviewers who took no part in the planning will read the doc cold and object.")
+        return ('<p>The design is done. Two reviewers who took no part in the planning can now read the doc cold and object. '
+                'It takes a few minutes, and you answer each objection after.</p>'
+                + req("challenge", '<div class="btns"><button type="button" class="primary" data-send="start">Start the challenge</button>'
+                      '<button type="button" data-send="skip">Skip it</button></div>', cls="gate"))
     if st == "running":
-        return '<p class="working"><span class="pulse"></span> Reviewers are reading the doc cold. Their objections will appear here.</p>'
+        return '<p class="working"><span class="pulse"></span> Reviewers are reading the doc cold. Their objections will appear here.</p>' + skip
+    if any(not (o.get("response") or {}).get("kind") for o in d.get("objections", [])):
+        skip = req("challenge", '<div class="btns"><button type="button" data-send="skip">Skip the remaining objections</button></div>', anchor=False)
+    else:
+        skip = ""
     names = " and ".join(d.get("challengers", [])) or "Independent reviewers"
     out = [f'<p>{esc(names)} read the doc without the conversation behind it. Answer each objection: rebut it in your words, accept it (Claude reopens what it touches), or park it as an open question.</p>']
     for o in sorted(d.get("objections", []), key=lambda o: ["high", "medium", "low"].index(o.get("severity", "low"))):
@@ -413,12 +462,19 @@ def sec_challenge(ctx, d):
         else:
             out.append(f'''<div class="obj open sev-{esc(o.get("severity"))}" id="{esc(o["id"])}">{head}{body}
               {req(o["id"], RESPOND)}{ask_box(o["id"], "Ask Claude for evidence")}</div>''')
-    return "".join(out)
+    return "".join(out) + skip
 
 
 def sec_defend(ctx, d):
+    if d.get("defenseStatus") == "skipped":
+        return '<p class="muted">Skipped.</p>'
     if not d.get("defense"):
-        return later("Comes after the challenge: the questions a skeptical tech lead would ask you.")
+        if d.get("stage") != "defend":
+            return later("Comes after the challenge: the questions a skeptical tech lead would ask you.")
+        return ('<p>Last step: four or five hard questions a reviewer would ask, which you answer without Claude. '
+                'Claude grades each answer against the doc.</p>'
+                + req("defend", '<div class="btns"><button type="button" class="primary" data-send="start">Start the defense</button>'
+                      '<button type="button" data-send="skip">Skip it</button></div>', cls="gate"))
     out = ['<p>Answer these as you would in a design review, without asking Claude. Claude then grades each answer against the doc. A gap means the doc, or your understanding of it, is missing something.</p>']
     for x in d["defense"]:
         if x.get("answer"):
@@ -428,6 +484,8 @@ def sec_defend(ctx, d):
         else:
             out.append(f'<div class="dq-card" id="{esc(x["id"])}"><h4>{ctx.inline(x.get("q"))}</h4>' + req(x["id"], f'''<textarea data-field="text" data-draft="def-{esc(x["id"])}" rows="3" placeholder="Your answer" aria-label="Your answer"></textarea>
               <div class="btns"><button type="button" class="primary" data-send="defend" data-need-text>Send answer</button></div>''') + "</div>")
+    if any(not x.get("answer") for x in d["defense"]):
+        out.append(req("defend", '<div class="btns"><button type="button" data-send="skip">Skip the remaining questions</button></div>', anchor=False))
     return "".join(out)
 
 
@@ -435,8 +493,13 @@ def sec_done(ctx, d, meta):
     b = blockers(d)
     outs = d.get("outputs") or {}
     if d.get("stage") == "done":
-        return (f'<p class="ok">Signed off.</p>' + (f'<p>Design doc: <code>{esc(outs["doc"])}</code></p>' if outs.get("doc") else "")
-                + (f'<p>Implementation plan: <code>{esc(outs["plan"])}</code></p>' if outs.get("plan") else ""))
+        def inline_file(label, path, open_=False):
+            if not path:
+                return ""
+            body = ctx.md(open(path, encoding="utf-8").read()) if os.path.exists(path) else '<p class="muted">The file is not there any more.</p>'
+            return f'<details class="outdoc"{" open" if open_ else ""}><summary><h3>{esc(label)}</h3><p class="small muted"><code>{esc(path)}</code></p></summary>{body}</details>'
+        return ('<p class="ok">Signed off.</p>' + inline_file("Implementation plan", outs.get("plan"), True)
+                + inline_file("Design doc", outs.get("doc")))
     lst = "".join(f"<li>{esc(x)}</li>" for x in b)
     return (f'<p>When nothing is left below, Claude writes the design doc into the repo (after you confirm in Claude Code) and drafts the implementation plan from it.</p>'
             + (f'<h3>Still open</h3><ul>{lst}</ul>' if b else "<p class=ok>Nothing blocks sign-off.</p>")
@@ -499,8 +562,6 @@ def waiting_list(d):
         targets.append({"id": "frame", "label": "Approve or correct the Frame"})
     if d.get("ground", {}).get("status") == "draft":
         targets.append({"id": "ground", "label": "Confirm how it works today"})
-    if d.get("decisionsStatus") == "proposed":
-        targets.append({"id": "decide", "label": "Approve the list of decisions"})
     for x in d.get("decisions", []):
         if x.get("status") == "open":
             targets.append({"id": x["id"], "label": f"Decide {x['id']}: {x.get('title', '')}"})
